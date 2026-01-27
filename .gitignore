@@ -1,0 +1,36 @@
+# --- Binaries ---
+# Compiled Go executables (prevents committing machine-specific binaries)
+/bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# --- Environment & Secrets (CRITICAL) ---
+# Your database credentials and API keys
+.env
+.env.local
+config.yaml
+!config.example.yaml
+
+# --- Docker & Persistence ---
+# Your Postgres data folder from docker-compose
+postgres-data/
+*.db
+*.sqlite
+
+# --- Dependency Management ---
+# Keep go.mod and go.sum, but usually ignore the vendor folder
+# unless your specific CI/CD pipeline requires it.
+vendor/
+
+# --- Testing & Coverage ---
+*.test
+*.out
+coverage.txt
+
+# --- IDEs & System ---
+.vscode/
+.idea/
+.DS_Store

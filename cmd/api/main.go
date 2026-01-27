@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 	"toomanyhours-api/internal/repository"
 	"toomanyhours-api/internal/repository/dbrepo"
 )
@@ -15,6 +16,11 @@ type application struct {
 	DSN string
 	Domain string
 	DB repository.DatabaseRepo
+	auth Auth
+	JWTSecret string
+	JWTIssuer string
+	JWTAudience string
+	CookieDomain string
 }
 
 func main() {
@@ -28,6 +34,16 @@ func main() {
 		"host=localhost port=5432 user=toomanyhours password=hypestar dbname=toomanyhours sslmode=disable timezone=UTC connect_timeout=5",
 		"Postgres connection string",
 	)
+	flag.StringVar(
+		&app.JWTSecret, "jwt-secret", "verysecret", "Signing secret" )
+	flag.StringVar(
+		&app.JWTIssuer, "jwt-issuer", "localhost", "Signing issuer" )
+	flag.StringVar(
+		&app.JWTAudience, "jwt-audience", "localhost", "Signing audience" )
+	flag.StringVar(
+		&app.CookieDomain, "cookie-domain", "localhost", "Cookie domain" )
+	flag.StringVar(
+		&app.Domain, "domain", "localhost", "Domain" )
 	flag.Parse()
 
 	// connect to database
@@ -38,7 +54,16 @@ func main() {
 	app.DB = &dbrepo.PostgresDBRepo{DB: conn}
 	defer app.DB.Connection().Close()
 
-	app.Domain = "localhost"
+	app.auth = Auth{
+		Issuer: app.JWTIssuer,
+		Audience: app.JWTAudience,
+		Secret: app.JWTSecret,
+		TokenExpiry: time.Minute * 15,
+		RefreshTokenExpiry: time.Hour * 24,
+		CookiePath: "/", // root path
+		CookieName: "__Host-refresh_token", // secure, httponly, samesite=lax cookie name
+		CookieDomain: "",
+	}
 
 	log.Printf("starting API server on %s:%d", app.Domain, port)
 

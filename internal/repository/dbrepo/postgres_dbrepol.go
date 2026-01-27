@@ -53,3 +53,67 @@ func (m *PostgresDBRepo) AllGames() ([]*models.Game, error) {
 
 	return games, nil
 }
+
+func (m *PostgresDBRepo) GetUserByEmail(email string) (*models.User, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	query := `
+		SELECT
+			id, username, email, password, created_at, updated_at
+		FROM
+			users
+		WHERE
+			email = $1
+	`
+
+	var user models.User
+	row := m.DB.QueryRowContext(ctx, query, email)
+
+	err := row.Scan(
+		&user.ID,
+		&user.Username,
+		&user.Email,
+		&user.Password,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}
+
+func (m *PostgresDBRepo) GetUserByID(id int) (*models.User, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+	defer cancel()
+
+	query := `
+		SELECT
+			id, username, email, password, created_at, updated_at
+		FROM
+			users
+		WHERE
+			id = $1
+	`
+
+	var user models.User
+	row := m.DB.QueryRowContext(ctx, query, id)
+
+	err := row.Scan(
+		&user.ID,
+		&user.Username,
+		&user.Email,
+		&user.Password,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}

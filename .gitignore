@@ -34,3 +34,6 @@ coverage.txt
 .vscode/
 .idea/
 .DS_Store
+
+# --- Backups ---
+backups/

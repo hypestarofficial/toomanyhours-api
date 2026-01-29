@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v4"
 )
 
@@ -16,20 +17,50 @@ func (app *application) Home(w http.ResponseWriter, r *http.Request) {
 	}{
 		Status: "active",
 		Message: "tooManyHours API is running",
-		Version: "0.0.1",
+		Version: "0.1.0",
 	}
 
 	_ = app.writeJSON(w, http.StatusOK, payload)
 }
 
-func (app *application) AllGames(w http.ResponseWriter, r *http.Request) {
-	games, err := app.DB.AllGames()
+func (app *application) GetGames(w http.ResponseWriter, r *http.Request) {
+	title := r.URL.Query().Get("title")
+
+	games, err := app.DB.GetGames(title)
+	if err != nil {
+			app.errorJSON(w, err)
+			return
+	}
+
+	_ = app.writeJSON(w, http.StatusOK, games)
+}
+
+func (app *application) GetGameByGameId(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	gameId, err := strconv.Atoi(id)
 	if err != nil {
 		app.errorJSON(w, err)
 		return
 	}
 
-	_ = app.writeJSON(w, http.StatusOK, games)
+	game, err := app.DB.GetGameByGameId(gameId)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	_ = app.writeJSON(w, http.StatusOK, game)
+}
+
+func (app *application) GetGenres(w http.ResponseWriter, r *http.Request) {
+	genres, err := app.DB.GetGenres()
+	if err != nil {
+			app.errorJSON(w, err)
+			return
+	}
+
+	_ = app.writeJSON(w, http.StatusOK, genres)
 }
 
 func (app *application) Authenticate(w http.ResponseWriter, r *http.Request) {
@@ -127,4 +158,16 @@ func (app *application) RefreshToken(w http.ResponseWriter, r *http.Request) {
 func (app *application) Logout(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, app.auth.GetExpiredRefreshCookie(""))
 	w.WriteHeader(http.StatusAccepted)
+}
+
+func (app *application) GamesCatalog(w http.ResponseWriter, r *http.Request) {
+	title := r.URL.Query().Get("title")
+
+	games, err := app.DB.GetGames(title)
+	if err != nil {
+			app.errorJSON(w, err)
+			return
+	}
+
+	_ = app.writeJSON(w, http.StatusOK, games)
 }

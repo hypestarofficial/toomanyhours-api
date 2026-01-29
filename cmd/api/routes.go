@@ -24,7 +24,15 @@ func (app *application) routes() http.Handler {
 	mux.Get("/logout", app.Logout)
 
 	// Games
-	mux.Get("/games", app.AllGames)
+	mux.Get("/games", app.GetGames)
+	mux.Get("/games/{id}", app.GetGameByGameId)
+	mux.Get("/genres", app.GetGenres)
+
+	mux.Route("/admin", func(mux chi.Router) {
+		mux.Use(app.AuthRequired)
+		
+		mux.Get("/games", app.GamesCatalog)
+	})
 
 	return mux
 }

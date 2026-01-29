@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 	"toomanyhours-api/internal/repository"
 	"toomanyhours-api/internal/repository/dbrepo"
-)
 
-const port = 3130
+	"github.com/joho/godotenv"
+)
 
 type application struct {
 	DSN string
@@ -26,16 +27,28 @@ type application struct {
 func main() {
 	// set application config
 	var app application
+	godotenv.Load()
+
+	// get environment variables
+	port := os.Getenv("PORT")
+	dbUser := os.Getenv("DB_USER")
+	dbPass := os.Getenv("DB_PASSWORD")
+	dbName := os.Getenv("DB_NAME")
+	dbPort := os.Getenv("DB_PORT")
+	dbSslmode := os.Getenv("DB_SSLMODE")
+	dbTimezone := os.Getenv("DB_TIMEZONE")
+	dbTimeout := os.Getenv("DB_CONNECT_TIMEOUT")
+	dbHost := os.Getenv("DB_HOST")
 
 	// read from command line
 	flag.StringVar(
 		&app.DSN, 
 		"dsn",
-		"host=localhost port=5432 user=toomanyhours password=hypestar dbname=toomanyhours sslmode=disable timezone=UTC connect_timeout=5",
+		fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s timezone=%s connect_timeout=%s", dbHost, dbPort, dbUser, dbPass, dbName, dbSslmode, dbTimezone, dbTimeout),
 		"Postgres connection string",
 	)
 	flag.StringVar(
-		&app.JWTSecret, "jwt-secret", "verysecret", "Signing secret" )
+		&app.JWTSecret, "jwt-secret", os.Getenv("JWT_SECRET"), "Signing secret" )
 	flag.StringVar(
 		&app.JWTIssuer, "jwt-issuer", "localhost", "Signing issuer" )
 	flag.StringVar(
@@ -65,10 +78,10 @@ func main() {
 		CookieDomain: "",
 	}
 
-	log.Printf("starting API server on %s:%d", app.Domain, port)
+	log.Printf("starting tooManyHours API server on %s:%s", app.Domain, port)
 
 	// start a web server
-	err = http.ListenAndServe(fmt.Sprintf(":%d", port), app.routes())
+	err = http.ListenAndServe(fmt.Sprintf(":%s", port), app.routes())
 	if err != nil {
 		log.Fatal(err)
 	}

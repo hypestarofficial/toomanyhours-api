@@ -44,7 +44,7 @@ func (j *Auth) GenerateTokenPair(user *jwtUser) (TokenPairs, error) {
 	claims["aud"] = j.Audience
 	claims["iss"] = j.Issuer
 	claims["iat"] = time.Now().UTC().Unix()
-	claims["typ"] = "JWT"	
+	claims["typ"] = "JWT"
 
 	// Set the expiry for JWT
 	claims["exp"] = time.Now().UTC().Add(j.TokenExpiry).Unix()

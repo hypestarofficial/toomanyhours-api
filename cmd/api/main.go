@@ -30,6 +30,7 @@ func main() {
 	godotenv.Load()
 
 	// get environment variables
+	version := os.Getenv("VERSION")
 	port := os.Getenv("PORT")
 	dbUser := os.Getenv("DB_USER")
 	dbPass := os.Getenv("DB_PASSWORD")
@@ -79,6 +80,7 @@ func main() {
 	}
 
 	log.Printf("starting tooManyHours API server on %s:%s", app.Domain, port)
+	log.Printf("version: %s", version)
 
 	// start a web server
 	err = http.ListenAndServe(fmt.Sprintf(":%s", port), app.routes())

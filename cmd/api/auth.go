@@ -32,37 +32,41 @@ type TokenPairs struct {
 }
 
 type Claims struct {
+	UserID int `json:"user_id"`
 	jwt.RegisteredClaims
 }
 
 func (j *Auth) GenerateTokenPair(user *jwtUser) (TokenPairs, error) {
-	// Create a token and set claims
-	token := jwt.New(jwt.SigningMethodHS256)
-	claims := token.Claims.(jwt.MapClaims)
-	claims["name"] = fmt.Sprintf("%s", user.Username)
-	claims["sub"] = fmt.Sprintf("%d", user.ID)
-	claims["aud"] = j.Audience
-	claims["iss"] = j.Issuer
-	claims["iat"] = time.Now().UTC().Unix()
-	claims["typ"] = "JWT"
+	// Create claims for the access token using the structured Claims struct
+	accessTokenClaims := Claims{
+		UserID: user.ID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   fmt.Sprintf("%d", user.ID),
+			Audience:  []string{j.Audience}, 
+			Issuer:    j.Issuer,
+			IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
+			ExpiresAt: jwt.NewNumericDate(time.Now().UTC().Add(j.TokenExpiry)),
+		},
+	}
 
-	// Set the expiry for JWT
-	claims["exp"] = time.Now().UTC().Add(j.TokenExpiry).Unix()
+	// Create a token with those claims
+	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, accessTokenClaims)
 	
-	// Create a signed token
-	signedAccessToken, err := token.SignedString([]byte(j.Secret))
+	// Create a signed access token
+	signedAccessToken, err := accessToken.SignedString([]byte(j.Secret))
 	if err != nil {
 		return TokenPairs{}, err
 	} 
 
-	// Create a refresh token and set claims
-	refreshToken := jwt.New(jwt.SigningMethodHS256)
-	refreshClaims := refreshToken.Claims.(jwt.MapClaims)
-	refreshClaims["sub"] = fmt.Sprint(user.ID)
-	refreshClaims["iat"] = time.Now().UTC().Unix()
+	// Create claims for the refresh token (using standard claims)
+	refreshTokenClaims := jwt.RegisteredClaims{
+		Subject:   fmt.Sprintf("%d", user.ID),
+		IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
+		ExpiresAt: jwt.NewNumericDate(time.Now().UTC().Add(j.RefreshTokenExpiry)),
+	}
 
-	// Set the expiry for refresh token
-	refreshClaims["exp"] = time.Now().UTC().Add(j.RefreshTokenExpiry).Unix()
+	// Create a refresh token with those claims
+	refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshTokenClaims)
 
 	// Create signed refresh token
 	signedRefreshToken, err := refreshToken.SignedString([]byte(j.Secret))
@@ -72,7 +76,7 @@ func (j *Auth) GenerateTokenPair(user *jwtUser) (TokenPairs, error) {
 
 	// Create TokenPairs and populate with signed tokens
 	var tokenPairs = TokenPairs{
-		Token: signedAccessToken,
+		Token:        signedAccessToken,
 		RefreshToken: signedRefreshToken,
 	}
 
@@ -108,55 +112,44 @@ func (j *Auth) GetExpiredRefreshCookie(refreshToken string) *http.Cookie {
 	}
 }
 
-func (j *Auth) GetTokenFromHeaderAndVerify(w http.ResponseWriter, r *http.Request) (string, *Claims, error) {
+func (j *Auth) GetTokenFromHeaderAndVerify(w http.ResponseWriter, r *http.Request) (int, error) { // Changed return types
 	w.Header().Add("Vary", "Authorization")
 
-	// get auth header
 	authHeader := r.Header.Get("Authorization")
-
-	// sanity check
 	if authHeader == "" {
-		return "", nil, errors.New("Authorization header is required")
+		return 0, errors.New("Authorization header is required") // Return 0 for ID on error
 	}
 
-	// split the header on spaces
 	headerParts := strings.Split(authHeader, " ")
 	if len(headerParts) != 2 {
-		return "", nil, errors.New("Invalid authorization header")
+		return 0, errors.New("Invalid authorization header")
 	}
 
-	// check if the header is a bearer token
 	if headerParts[0] != "Bearer" {
-		return "", nil, errors.New("Invalid authorization header")
+		return 0, errors.New("Invalid authorization header")
 	}
 
-	// get the token
 	token := headerParts[1]
-
-	// declare an empty claims
 	claims := &Claims{}
 
-	// parse the token
 	_, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (any, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
 		}
-
 		return []byte(j.Secret), nil
 	})
 
-	// check if token is expired
 	if err != nil {
 		if strings.HasPrefix(err.Error(), "Token is expired") {
-			return "", nil, errors.New("Token is expired")
+			return 0, errors.New("Token is expired")
 		}
-		return "", nil, err
+		return 0, err
 	}
 
-	// check if the issuer is valid
 	if claims.Issuer != j.Issuer {
-		return "", nil, errors.New("Invalid issuer")
+		return 0, errors.New("Invalid issuer")
 	}
 
-	return token, claims, nil
+    // Success: Return the UserID from the claims struct and nil error
+	return claims.UserID, nil 
 }

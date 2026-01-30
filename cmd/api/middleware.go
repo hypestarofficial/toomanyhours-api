@@ -1,6 +1,14 @@
 package main
 
-import "net/http"
+import (
+	"context"
+	"fmt"
+	"net/http"
+)
+
+type ContextKey string
+
+const UserIDContextKey = ContextKey("userID")
 
 func (app *application) enableCORS(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -17,14 +25,21 @@ func (app *application) enableCORS(h http.Handler) http.Handler {
 	})
 }
 
-func (app *application) AuthRequired(next http.Handler) http.Handler  {
+func (app *application) AuthRequired(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _, err := app.auth.GetTokenFromHeaderAndVerify(w, r)
+        // Use the updated helper function to get just the ID
+		userID, err := app.auth.GetTokenFromHeaderAndVerify(w, r)
 		if err != nil {
+            // If verification fails, stop here and return unauthorized
 			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte("Unauthorized"))
+			w.Write([]byte(fmt.Sprintf("Unauthorized: %s", err.Error()))) // Add error message for debugging
 			return
 		}
-		next.ServeHTTP(w, r)
+		
+        // Add the user ID to the request context
+        ctx := context.WithValue(r.Context(), UserIDContextKey, userID)
+        
+        // Call the next handler using the *new* request context
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

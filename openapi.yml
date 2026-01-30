@@ -1,0 +1,100 @@
+openapi: 3.0.3
+info:
+  title: Games API
+  description: API for managing games and user profiles
+  version: 0.1.1
+
+servers:
+  - url: http://localhost:3130
+    description: Local development server
+
+paths:
+  # --- Public Routes ---
+  /authenticate:
+    post:
+      summary: Login to get a token
+      tags: [Auth]
+      responses:
+        '200':
+          description: Successful login
+          content:
+            application/json: {}
+
+  /refresh-token:
+    get:
+      summary: Refresh the current JWT
+      tags: [Auth]
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json: {}
+
+  # --- Admin Routes ---
+  /admin/games:
+    get:
+      summary: View full game catalog (Admin only)
+      tags: [Admin]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of all games for administration
+          content:
+            application/json: {}
+
+  # --- Authorized Routes ---
+  /games:
+    get:
+      summary: Get list of games
+      tags: [Games]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: A list of games
+          content:
+            application/json: {}
+          
+  /games/{id}:
+    get:
+      summary: Get a single game by ID
+      tags: [Games]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Game details
+          content:
+            application/json: {}
+
+  /users/{id}:
+    get:
+      summary: Get user profile
+      tags: [Users]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User data
+          content:
+            application/json: {}
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

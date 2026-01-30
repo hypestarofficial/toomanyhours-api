@@ -3,13 +3,18 @@ package main
 import (
 	"errors"
 	"net/http"
+	"os"
 	"strconv"
+	"time"
+	"toomanyhours-api/internal/models"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v4"
 )
 
 func (app *application) Home(w http.ResponseWriter, r *http.Request) {
+	version := os.Getenv("VERSION")
+
 	var payload = struct {
 		Status string `json:"status"`
 		Message string `json:"message"`
@@ -17,10 +22,34 @@ func (app *application) Home(w http.ResponseWriter, r *http.Request) {
 	}{
 		Status: "active",
 		Message: "tooManyHours API is running",
-		Version: "0.1.0",
+		Version: version,
 	}
 
 	_ = app.writeJSON(w, http.StatusOK, payload)
+}
+
+func (app *application) MeHandler(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value(UserIDContextKey).(int) 
+	if !ok {
+			http.Error(w, "User context missing", http.StatusInternalServerError)
+			return
+	}
+	
+	user, err := app.DB.GetUserByID(userID) 
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	apiUser := models.APIUser{
+			ID: user.ID,
+			Username: user.Username,
+			Email: user.Email,
+			CreatedAt: user.CreatedAt,
+			UpdatedAt: user.UpdatedAt,
+	}
+
+	app.writeJSON(w, http.StatusOK, apiUser) 
 }
 
 func (app *application) GetGames(w http.ResponseWriter, r *http.Request) {
@@ -153,6 +182,40 @@ func (app *application) RefreshToken(w http.ResponseWriter, r *http.Request) {
 			app.writeJSON(w, http.StatusOK, tokenPairs)
 		}
 	}
+}
+
+func (app *application) GetUserByID(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	userId, err := strconv.Atoi(id)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	user, err := app.DB.GetUserByID(userId)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	type UserResponse struct {
+		ID        int       `json:"id"`
+		Username  string    `json:"username"`
+		Email     string    `json:"email"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+}
+
+resp := UserResponse{
+		ID:        user.ID,
+		Username:  user.Username,
+		Email:     user.Email,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+}
+
+_ = app.writeJSON(w, http.StatusOK, resp)
 }
 
 func (app *application) Logout(w http.ResponseWriter, r *http.Request) {

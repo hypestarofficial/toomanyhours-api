@@ -15,22 +15,39 @@ func (app *application) routes() http.Handler {
 	mux.Use(middleware.Recoverer)
 	mux.Use(app.enableCORS)
 
-	// Root
+	// Root for Ping (health check)
 	mux.Get("/", app.Home)
 
-	// Auth
+	// Auth for Login, Refresh Token, and Logout
 	mux.Post("/authenticate", app.Authenticate)
 	mux.Get("/refresh-token", app.RefreshToken)
 	mux.Get("/logout", app.Logout)
 
-	// Games
-	mux.Get("/games", app.GetGames)
-	mux.Get("/games/{id}", app.GetGameByGameId)
-	mux.Get("/genres", app.GetGenres)
+	// Authorized Routes
+	mux.Group(func(mux chi.Router) {
+		// Check Auth Header for valid token
+		mux.Use(app.AuthRequired)
 
+		// Me
+		mux.Get("/me", app.MeHandler)
+
+		// Users
+		mux.Get("/users/{id}", app.GetUserByID)
+		
+		// Games
+		mux.Get("/games", app.GetGames) // query params: title
+		mux.Get("/games/{id}", app.GetGameByGameId)
+
+		// Genres
+		mux.Get("/genres", app.GetGenres)
+	})
+
+	// Admin Routes
 	mux.Route("/admin", func(mux chi.Router) {
+		// Check Auth Header for valid token
 		mux.Use(app.AuthRequired)
 		
+		// Admin Games Catalog (games with genres)
 		mux.Get("/games", app.GamesCatalog)
 	})
 

@@ -5,12 +5,26 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 	"toomanyhours-api/internal/models"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v4"
 )
+
+// splitAndTrim splits a string by delimiter and trims whitespace from each element
+func splitAndTrim(s string, delimiter string) []string {
+	parts := strings.Split(s, delimiter)
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
+}
 
 func (app *application) Home(w http.ResponseWriter, r *http.Request) {
 	version := os.Getenv("VERSION")
@@ -54,8 +68,21 @@ func (app *application) MeHandler(w http.ResponseWriter, r *http.Request) {
 
 func (app *application) GetGames(w http.ResponseWriter, r *http.Request) {
 	title := r.URL.Query().Get("title")
+	genreIDsStr := r.URL.Query().Get("genreIDs")
 
-	games, err := app.DB.GetGames(title)
+	var genreIDs []int
+	if genreIDsStr != "" {
+		// Split comma-separated genre IDs
+		genreIDsStrSlice := splitAndTrim(genreIDsStr, ",")
+		for _, idStr := range genreIDsStrSlice {
+			id, err := strconv.Atoi(idStr)
+			if err == nil {
+				genreIDs = append(genreIDs, id)
+			}
+		}
+	}
+
+	games, err := app.DB.GetGames(title, genreIDs)
 	if err != nil {
 			app.errorJSON(w, err)
 			return
@@ -223,14 +250,100 @@ func (app *application) Logout(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusAccepted)
 }
 
-func (app *application) GamesCatalog(w http.ResponseWriter, r *http.Request) {
-	title := r.URL.Query().Get("title")
+func (app *application) PostGameToGames(w http.ResponseWriter, r *http.Request) {
+	var game models.Game
 
-	games, err := app.DB.GetGames(title)
+	err := app.readJSON(w, r, &game)
 	if err != nil {
-			app.errorJSON(w, err)
-			return
+		app.errorJSON(w, err)
+		return
 	}
 
-	_ = app.writeJSON(w, http.StatusOK, games)
+	game.CreatedAt = time.Now()
+	game.UpdatedAt = time.Now()
+
+	newID, err := app.DB.PostGameToGames(game)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	err = app.DB.PostGameGenres(newID, game.GenreIDs)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	savedGame, err := app.DB.GetGameByGameId(newID)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	app.writeJSON(w, http.StatusCreated, savedGame)
+}
+
+func (app *application) PutGameByGameId(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	gameId, err := strconv.Atoi(id)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+	
+	var game models.Game
+	err = app.readJSON(w, r, &game)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	existingGame, err := app.DB.GetGameByGameId(gameId)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	existingGame.Title = game.Title
+	existingGame.ReleaseDate = game.ReleaseDate
+	existingGame.Image = game.Image
+	existingGame.UpdatedAt = time.Now()
+
+	err = app.DB.PutGameByGameId(*existingGame)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	err = app.DB.PostGameGenres(existingGame.ID, game.GenreIDs)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	// Re-fetch the game to get updated genres
+	updatedGame, err := app.DB.GetGameByGameId(gameId)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	app.writeJSON(w, http.StatusOK, updatedGame)
+}
+
+func (app *application) DeleteGameByGameId(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	gameId, err := strconv.Atoi(id)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	err = app.DB.DeleteGameByGameId(gameId)
+	if err != nil {
+		app.errorJSON(w, err)
+		return
+	}
+
+	app.writeJSON(w, http.StatusOK, nil)
 }

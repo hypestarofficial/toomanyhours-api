@@ -35,7 +35,7 @@ func (app *application) routes() http.Handler {
 		mux.Get("/users/{id}", app.GetUserByID)
 		
 		// Games
-		mux.Get("/games", app.GetGames) // query params: title
+		mux.Get("/games", app.GetGames) // query params: title, genreIDs
 		mux.Get("/games/{id}", app.GetGameByGameId)
 
 		// Genres
@@ -48,7 +48,10 @@ func (app *application) routes() http.Handler {
 		mux.Use(app.AuthRequired)
 		
 		// Admin Games Catalog (games with genres)
-		mux.Get("/games", app.GamesCatalog)
+		mux.Get("/games", app.GetGames) // query params: title, genreIDs
+		mux.Post("/games", app.PostGameToGames)
+		mux.Put("/games/{id}", app.PutGameByGameId)
+		mux.Delete("/games/{id}", app.DeleteGameByGameId)
 	})
 
 	return mux

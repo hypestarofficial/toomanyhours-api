@@ -10,6 +10,7 @@ type Game struct {
 	CreatedAt time.Time `json:"-"`
 	UpdatedAt time.Time `json:"-"`
 	Genres []*Genre `json:"genres,omitempty"`
+	GenreIDs []int `json:"genreIds,omitempty"`
 }
 
 type Genre struct {

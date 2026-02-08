@@ -18,8 +18,8 @@ func (m *PostgresDBRepo) Connection() *sql.DB {
 	return m.DB
 }
 
-func (m *PostgresDBRepo) GetGames(title string, genreIDs []int) ([]*models.Game, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+func (m *PostgresDBRepo) GetGames(ctx context.Context, title string, genreIDs []int) ([]*models.Game, error) {
+	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
 	defer cancel()
 
 	query := `
@@ -107,8 +107,8 @@ func (m *PostgresDBRepo) GetGames(title string, genreIDs []int) ([]*models.Game,
 	return games, nil
 }
 
-func (m *PostgresDBRepo) GetGenres() ([]*models.Genre, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+func (m *PostgresDBRepo) GetGenres(ctx context.Context) ([]*models.Genre, error) {
+	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
 	defer cancel()
 
 	query := `
@@ -142,8 +142,8 @@ func (m *PostgresDBRepo) GetGenres() ([]*models.Genre, error) {
 	return genres, nil
 }
 
-func (m *PostgresDBRepo) GetGameByGameId(id int) (*models.Game, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+func (m *PostgresDBRepo) GetGameByGameId(ctx context.Context, id int) (*models.Game, error) {
+	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
 	defer cancel()
 
 	query := `
@@ -206,8 +206,8 @@ func (m *PostgresDBRepo) GetGameByGameId(id int) (*models.Game, error) {
 	return &game, nil
 }
 
-func (m *PostgresDBRepo) GetUserByEmail(email string) (*models.User, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+func (m *PostgresDBRepo) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
+	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
 	defer cancel()
 
 	query := `
@@ -238,8 +238,8 @@ func (m *PostgresDBRepo) GetUserByEmail(email string) (*models.User, error) {
 	return &user, nil
 }
 
-func (m *PostgresDBRepo) GetUserByID(id int) (*models.User, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+func (m *PostgresDBRepo) GetUserByID(ctx context.Context, id int) (*models.User, error) {
+	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
 	defer cancel()
 
 	query := `
@@ -270,11 +270,11 @@ func (m *PostgresDBRepo) GetUserByID(id int) (*models.User, error) {
 	return &user, nil
 }
 
-func (m *PostgresDBRepo) PostGameToGames(game models.Game) (int, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+func (m *PostgresDBRepo) PostGameToGames(ctx context.Context, game models.Game) (int, error) {
+	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
 	defer cancel()
 
-	existingGame, err := m.GetGameByGameId(game.ID)
+	existingGame, err := m.GetGameByGameId(ctx, game.ID)
 	if err == nil && existingGame != nil {
 		return existingGame.ID, nil
 	}
@@ -300,8 +300,8 @@ func (m *PostgresDBRepo) PostGameToGames(game models.Game) (int, error) {
 	return game.ID, nil
 }
 
-func (m *PostgresDBRepo) PostGameGenres(id int, genreIDs []int) error {
-	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+func (m *PostgresDBRepo) PostGameGenres(ctx context.Context, id int, genreIDs []int) error {
+	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
 	defer cancel()
 
 	// Delete existing genre associations for this game
@@ -323,8 +323,8 @@ func (m *PostgresDBRepo) PostGameGenres(id int, genreIDs []int) error {
 	return nil
 }
 
-func (m* PostgresDBRepo) PutGameByGameId(game models.Game) error {
-	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+func (m* PostgresDBRepo) PutGameByGameId(ctx context.Context, game models.Game) error {
+	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
 	defer cancel()
 
 	stmt := `UPDATE games SET title = $1, image = $2, release_date = $3 WHERE id = $4`
@@ -344,8 +344,8 @@ func (m* PostgresDBRepo) PutGameByGameId(game models.Game) error {
 	return nil
 }
 
-func (m *PostgresDBRepo) DeleteGameByGameId(id int) error {
-	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+func (m *PostgresDBRepo) DeleteGameByGameId(ctx context.Context, id int) error {
+	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
 	defer cancel()
 
 	stmt := `DELETE FROM games WHERE id = $1`

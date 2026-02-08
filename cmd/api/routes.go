@@ -1,58 +1,53 @@
 package main
 
 import (
-	"net/http"
-	
-	"github.com/go-chi/chi/v5/middleware"
-	"github.com/go-chi/chi/v5"
+	"github.com/gin-gonic/gin"
 )
 
 // Routes using handlers
-func (app *application) routes() http.Handler {
+func (app *application) routes() *gin.Engine {
 	// create a new multiplexer router
-	mux := chi.NewRouter()
+	router := gin.Default()
 
-	mux.Use(middleware.Recoverer)
-	mux.Use(app.enableCORS)
+	router.Use(gin.Recovery())
+	router.Use(app.enableCORS())
 
 	// Root for Ping (health check)
-	mux.Get("/", app.Home)
+	router.GET("/", app.Home)
 
 	// Auth for Login, Refresh Token, and Logout
-	mux.Post("/authenticate", app.Authenticate)
-	mux.Get("/refresh-token", app.RefreshToken)
-	mux.Get("/logout", app.Logout)
+	router.POST("/authenticate", app.Authenticate)
+	router.GET("/refresh-token", app.RefreshToken)
+	router.GET("/logout", app.Logout)
 
 	// Authorized Routes
-	mux.Group(func(mux chi.Router) {
-		// Check Auth Header for valid token
-		mux.Use(app.AuthRequired)
-
+	auth := router.Group("/")
+	// Check Auth Header for valid token
+	auth.Use(app.AuthRequired())
+	{
 		// Me
-		mux.Get("/me", app.MeHandler)
+		auth.GET("/me", app.MeHandler)
 
 		// Users
-		mux.Get("/users/{id}", app.GetUserByID)
+		auth.GET("/users/:id", app.GetUserByID)
 		
 		// Games
-		mux.Get("/games", app.GetGames) // query params: title, genreIDs
-		mux.Get("/games/{id}", app.GetGameByGameId)
+		auth.GET("/games", app.GetGames) // query params: title, genreIDs
+		auth.GET("/games/:id", app.GetGameByGameId)
 
 		// Genres
-		mux.Get("/genres", app.GetGenres)
-	})
+		auth.GET("/genres", app.GetGenres)
+	}
 
 	// Admin Routes
-	mux.Route("/admin", func(mux chi.Router) {
-		// Check Auth Header for valid token
-		mux.Use(app.AuthRequired)
-		
+	admin := auth.Group("/admin")
+	{
 		// Admin Games Catalog (games with genres)
-		mux.Get("/games", app.GetGames) // query params: title, genreIDs
-		mux.Post("/games", app.PostGameToGames)
-		mux.Put("/games/{id}", app.PutGameByGameId)
-		mux.Delete("/games/{id}", app.DeleteGameByGameId)
-	})
+		admin.GET("/games", app.GetGames) // query params: title, genreIDs
+		admin.POST("/games", app.PostGameToGames)
+		admin.PUT("/games/:id", app.PutGameByGameId)
+		admin.DELETE("/games/:id", app.DeleteGameByGameId)
+	}
 
-	return mux
+	return router
 }

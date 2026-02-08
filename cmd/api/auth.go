@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v4"
 )
 
@@ -37,7 +38,6 @@ type Claims struct {
 }
 
 func (j *Auth) GenerateTokenPair(user *jwtUser) (TokenPairs, error) {
-	// Create claims for the access token using the structured Claims struct
 	accessTokenClaims := Claims{
 		UserID: user.ID,
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -112,21 +112,17 @@ func (j *Auth) GetExpiredRefreshCookie(refreshToken string) *http.Cookie {
 	}
 }
 
-func (j *Auth) GetTokenFromHeaderAndVerify(w http.ResponseWriter, r *http.Request) (int, error) { // Changed return types
-	w.Header().Add("Vary", "Authorization")
+func (j *Auth) GetTokenFromHeaderAndVerify(c *gin.Context) (int, error) { // Changed return types
+	c.Header("Vary", "Authorization")
 
-	authHeader := r.Header.Get("Authorization")
+	authHeader := c.GetHeader("Authorization")
 	if authHeader == "" {
 		return 0, errors.New("Authorization header is required") // Return 0 for ID on error
 	}
 
 	headerParts := strings.Split(authHeader, " ")
-	if len(headerParts) != 2 {
-		return 0, errors.New("Invalid authorization header")
-	}
-
-	if headerParts[0] != "Bearer" {
-		return 0, errors.New("Invalid authorization header")
+	if len(headerParts) != 2 || headerParts[0] != "Bearer" {
+		return 0, errors.New("invalid authorization header")
 	}
 
 	token := headerParts[1]
@@ -140,7 +136,7 @@ func (j *Auth) GetTokenFromHeaderAndVerify(w http.ResponseWriter, r *http.Reques
 	})
 
 	if err != nil {
-		if strings.HasPrefix(err.Error(), "Token is expired") {
+		if strings.Contains(err.Error(), "Expired") {
 			return 0, errors.New("Token is expired")
 		}
 		return 0, err

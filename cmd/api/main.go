@@ -4,12 +4,14 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"net/http"
+	"net/mail"
 	"os"
 	"time"
 	"toomanyhours-api/internal/repository"
 	"toomanyhours-api/internal/repository/dbrepo"
 
+	"github.com/gin-gonic/gin/binding"
+	"github.com/go-playground/validator/v10"
 	"github.com/joho/godotenv"
 )
 
@@ -22,6 +24,19 @@ type application struct {
 	JWTIssuer string
 	JWTAudience string
 	CookieDomain string
+}
+
+func emailValidator(fl validator.FieldLevel) bool {
+if _, err := mail.ParseAddress(fl.Field().String()); err == nil {
+	return true
+}
+return false
+}
+
+func init() {
+	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
+			v.RegisterValidation("email", emailValidator)
+	}
 }
 
 func main() {
@@ -83,7 +98,7 @@ func main() {
 	log.Printf("version: %s", version)
 
 	// start a web server
-	err = http.ListenAndServe(fmt.Sprintf(":%s", port), app.routes())
+	err = app.routes().Run(fmt.Sprintf(":%s", port)) 
 	if err != nil {
 		log.Fatal(err)
 	}

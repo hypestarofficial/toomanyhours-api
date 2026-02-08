@@ -1,45 +1,40 @@
 package main
 
 import (
-	"context"
-	"fmt"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
 )
 
 type ContextKey string
 
 const UserIDContextKey = ContextKey("userID")
 
-func (app *application) enableCORS(h http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "https://*")
-
-		if r.Method == "OPTIONS" {
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, X-CSRF-Token, Authorization")
+func (app *application) enableCORS() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "https://*")
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, X-CSRF-Token, Authorization")
+	
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(http.StatusNoContent)
 			return
-		} else {
-			h.ServeHTTP(w, r)
 		}
-	})
+
+		c.Next()
+	}
 }
 
-func (app *application) AuthRequired(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        // Use the updated helper function to get just the ID
-		userID, err := app.auth.GetTokenFromHeaderAndVerify(w, r)
+func (app *application) AuthRequired() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID, err := app.auth.GetTokenFromHeaderAndVerify(c)
 		if err != nil {
-            // If verification fails, stop here and return unauthorized
-			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte(fmt.Sprintf("Unauthorized: %s", err.Error()))) // Add error message for debugging
+			app.errorJSON(c, err, http.StatusUnauthorized)
 			return
 		}
 		
-        // Add the user ID to the request context
-        ctx := context.WithValue(r.Context(), UserIDContextKey, userID)
-        
-        // Call the next handler using the *new* request context
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
+		c.Set("userID", userID)
+		c.Next()
+	}
 }

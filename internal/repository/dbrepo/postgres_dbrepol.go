@@ -6,353 +6,186 @@ import (
 	"errors"
 	"time"
 	"toomanyhours-api/internal/models"
+
+	"gorm.io/gorm"
 )
 
 type PostgresDBRepo struct {
-	DB *sql.DB
+	GormDB *gorm.DB
 }
 
 const dbTimeout = time.Second * 3
 
 func (m *PostgresDBRepo) Connection() *sql.DB {
-	return m.DB
+	db, err := m.GormDB.DB()
+	if err != nil {
+		panic(err)
+	}
+	
+	return db
 }
 
 func (m *PostgresDBRepo) GetGames(ctx context.Context, title string, genreIDs []int) ([]*models.Game, error) {
-	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
-	defer cancel()
-
-	query := `
-		SELECT 
-			id, title, coalesce(image, ''), release_date
-		FROM
-			games
-		WHERE 
-			($1 = '' OR title ILIKE '%' || $1 || '%')
-	`
-	
-	args := []any{title}
-
-	if len(genreIDs) > 0 {
-		query += ` AND id IN (
-			SELECT game_id 
-			FROM games_genres 
-			WHERE genre_id = ANY($2)
-		)`
-		args = append(args, genreIDs)
-	}
-
-	query += `
-		ORDER BY
-			title
-	`
-
-	rows, err := m.DB.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
 	var games []*models.Game
 
-	for rows.Next() {
-		var game models.Game
-		err := rows.Scan(
-			&game.ID,
-			&game.Title,
-			&game.Image,
-			&game.ReleaseDate,
-		)
-		if err != nil {
-			return nil, err
-		}
-		games = append(games, &game)
+	query := m.GormDB.WithContext(ctx).Model(&models.Game{})
+
+	if title != "" {
+		query = query.Where("title LIKE ?", "%"+title+"%")
+	}
+	
+	if len(genreIDs) > 0 {
+		subQuery := m.GormDB.Select("game_id").Table("games_genres").Where("genre_id IN (?)", genreIDs)
+		query = query.Where("id IN (?)", subQuery)
 	}
 
-	// for each game, fetch its genres from games_genres
-	query = `
-		SELECT
-			g.id, g.genre
-		FROM
-			games_genres gg LEFT JOIN genres g ON gg.genre_id = g.id
-		WHERE
-			gg.game_id = $1
-		ORDER BY
-			g.genre
-	`
+	result := query.Preload("Genres").
+		Order("title").
+		Find(&games)
 
-	for _, game := range games {
-		genreRows, err := m.DB.QueryContext(ctx, query, game.ID)
-		if err != nil && err != sql.ErrNoRows {
-			return nil, err
-		}
-
-		var genres []*models.Genre
-		for genreRows.Next() {
-			var genre models.Genre
-			if err := genreRows.Scan(
-				&genre.ID,
-				&genre.Genre,
-			); err != nil {
-				genreRows.Close()
-				return nil, err
-			}
-			genres = append(genres, &genre)
-		}
-		genreRows.Close()
-
-		game.Genres = genres
+	if result.Error != nil {
+		return nil, result.Error
 	}
 
 	return games, nil
 }
 
 func (m *PostgresDBRepo) GetGenres(ctx context.Context) ([]*models.Genre, error) {
-	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
-	defer cancel()
-
-	query := `
-		SELECT 
-			id, genre
-		FROM
-			genres
-		ORDER BY
-			genre
-	`
-
-	rows, err := m.DB.QueryContext(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
 	var genres []*models.Genre
-	for rows.Next() {
-		var genre models.Genre
-		err := rows.Scan(
-			&genre.ID,
-			&genre.Genre,
-		)
-		if err != nil {
-			return nil, err
-		}
-		genres = append(genres, &genre)
+
+	result := m.GormDB.WithContext(ctx).
+		Order("genre").
+		Find(&genres)
+	
+	if result.Error != nil {
+		return nil, result.Error
 	}
 
 	return genres, nil
 }
 
 func (m *PostgresDBRepo) GetGameByGameId(ctx context.Context, id int) (*models.Game, error) {
-	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
-	defer cancel()
-
-	query := `
-		SELECT
-			id, title, coalesce(image, ''), release_date
-		FROM
-			games
-		WHERE id = $1
-	`
-
-	row := m.DB.QueryRowContext(ctx, query, id)
-
 	var game models.Game
 
-	err := row.Scan(
-		&game.ID,
-		&game.Title,
-		&game.Image,
-		&game.ReleaseDate,
-	)
+	result := m.GormDB.WithContext(ctx).
+		Preload("Genres").
+		First(&game, id)
 
-	if err != nil {
-		return nil, err
-	}
-
-	// get genres for the game
-	query = `
-		SELECT
-			g.id, g.genre
-		FROM
-			games_genres gg LEFT JOIN genres g ON gg.genre_id = g.id
-		WHERE
-			gg.game_id = $1
-		ORDER BY
-			g.genre
-	`
-	rows, err := m.DB.QueryContext(ctx, query, id)
-	if err != nil && err != sql.ErrNoRows {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var genres []*models.Genre
-	
-	for rows.Next() {
-		var g models.Genre
-		err := rows.Scan(
-			&g.ID,
-			&g.Genre,
-		)
-		if err != nil {
-			return nil, err
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, sql.ErrNoRows
 		}
-
-		genres = append(genres, &g)
+		return nil, result.Error
 	}
-
-	game.Genres = genres
 
 	return &game, nil
 }
 
 func (m *PostgresDBRepo) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
-	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
-	defer cancel()
-
-	query := `
-		SELECT
-			id, username, email, password, created_at, updated_at
-		FROM
-			users
-		WHERE
-			email = $1
-	`
-
 	var user models.User
-	row := m.DB.QueryRowContext(ctx, query, email)
 
-	err := row.Scan(
-		&user.ID,
-		&user.Username,
-		&user.Email,
-		&user.Password,
-		&user.CreatedAt,
-		&user.UpdatedAt,
-	)
+	result := m.GormDB.WithContext(ctx).
+		Where("email = ?", email).
+		First(&user)
 
-	if err != nil {
-		return nil, err
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, sql.ErrNoRows
+		}
+		return nil, result.Error
 	}
 
 	return &user, nil
 }
 
 func (m *PostgresDBRepo) GetUserByID(ctx context.Context, id int) (*models.User, error) {
-	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
-	defer cancel()
-
-	query := `
-		SELECT
-			id, username, email, password, created_at, updated_at
-		FROM
-			users
-		WHERE
-			id = $1
-	`
-
 	var user models.User
-	row := m.DB.QueryRowContext(ctx, query, id)
 
-	err := row.Scan(
-		&user.ID,
-		&user.Username,
-		&user.Email,
-		&user.Password,
-		&user.CreatedAt,
-		&user.UpdatedAt,
-	)
+	result := m.GormDB.WithContext(ctx).
+		First(&user, id)
 
-	if err != nil {
-		return nil, err
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, sql.ErrNoRows
+		}
+		return nil, result.Error
 	}
 
 	return &user, nil
 }
 
 func (m *PostgresDBRepo) PostGameToGames(ctx context.Context, game models.Game) (int, error) {
-	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
-	defer cancel()
+	var existingGame models.Game
 
-	existingGame, err := m.GetGameByGameId(ctx, game.ID)
-	if err == nil && existingGame != nil {
+	err := m.GormDB.WithContext(ctx).First(&existingGame, game.ID).Error
+
+	if err == nil {
 		return existingGame.ID, nil
 	}
-	if err != nil && err != sql.ErrNoRows {
+
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return 0, err
 	}
 
-	query := `
-		INSERT INTO games (id, title, image, release_date)
-		OVERRIDING SYSTEM VALUE
-		VALUES ($1, $2, $3, $4)
-		RETURNING id
-	`
+	result := m.GormDB.WithContext(ctx).
+		Create(&game)
 
-	var insertedID int
-	err = m.DB.QueryRowContext(ctx, query, game.ID, game.Title, game.Image, game.ReleaseDate).Scan(&insertedID)
-
-	if err != nil {
-		return 0, err
+	if result.Error != nil {
+		return 0, result.Error
 	}
-
 
 	return game.ID, nil
 }
 
 func (m *PostgresDBRepo) PostGameGenres(ctx context.Context, id int, genreIDs []int) error {
-	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
-	defer cancel()
+	var game models.Game
+	game.ID = id
 
-	// Delete existing genre associations for this game
-	stmt := `DELETE FROM games_genres WHERE game_id = $1`
-	_, err := m.DB.ExecContext(ctx, stmt, id)
-	if err != nil {
-		return err
+	var genres []models.Genre
+	for _, gid := range genreIDs {
+		genres = append(genres, models.Genre{ID: gid})
 	}
 
-	// Insert new genre associations
-	for _, n := range genreIDs {
-		stmt = `INSERT INTO games_genres (game_id, genre_id) VALUES ($1, $2)`
-		_, err := m.DB.ExecContext(ctx, stmt, id, n)
-		if err != nil {
-			return err
-		}
+	err := m.GormDB.WithContext(ctx).
+		Model(&game).
+		Association("Genres").
+		Replace(genres)
+
+	if err != nil {
+		return err
 	}
 
 	return nil
 }
 
 func (m* PostgresDBRepo) PutGameByGameId(ctx context.Context, game models.Game) error {
-	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
-	defer cancel()
+	result := m.GormDB.WithContext(ctx).
+		Model(&game).
+		Select("Title", "Image", "ReleaseDate").
+		Updates(game)
 
-	stmt := `UPDATE games SET title = $1, image = $2, release_date = $3 WHERE id = $4`
-	result, err := m.DB.ExecContext(ctx, stmt, game.Title, game.Image, game.ReleaseDate, game.ID)
-	if err != nil {
-		return err
+	if result.Error != nil {
+		return result.Error
 	}
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rowsAffected == 0 {
-		return errors.New("Game was not found")
+	if result.RowsAffected == 0 {
+		return errors.New("Game not found")
 	}
 
 	return nil
 }
 
 func (m *PostgresDBRepo) DeleteGameByGameId(ctx context.Context, id int) error {
-	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
-	defer cancel()
+	result := m.GormDB.WithContext(ctx).
+		Unscoped().
+		Delete(&models.Game{}, id)
 
-	stmt := `DELETE FROM games WHERE id = $1`
+	if result.Error != nil {
+		return result.Error
+	}
 
-	_, err := m.DB.ExecContext(ctx, stmt, id)
-	if err != nil {
-		return err
+	if result.RowsAffected == 0 {
+		return errors.New("Game not found")
 	}
 
 	return nil

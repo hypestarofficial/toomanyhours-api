@@ -1,6 +1,8 @@
 package main
 
 import (
+	"time"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -11,6 +13,7 @@ func (app *application) routes() *gin.Engine {
 
 	router.Use(gin.Recovery())
 	router.Use(app.enableCORS())
+	router.Use(app.timeoutMiddleware(3 * time.Second))
 
 	// Root for Ping (health check)
 	router.GET("/", app.Home)

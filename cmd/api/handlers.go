@@ -156,7 +156,7 @@ func (app *application) PatchMe(c *gin.Context) {
 
 func (app *application) GetGames(c *gin.Context) {
 	title := c.Query("title")
-	genreIDsStr := c.Query("genreIDs")
+	genreIDsStr := c.Query("genreIds")
 
 	var genreIDs []int
 	if genreIDsStr != "" {

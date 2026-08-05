@@ -18,7 +18,8 @@ func (app *application) routes() *gin.Engine {
 	// Root for Ping (health check)
 	router.GET("/", app.Home)
 
-	// Auth for Login, Refresh Token, and Logout
+	// Auth for Register, Login, Refresh Token, and Logout
+	router.POST("/register", app.Register)
 	router.POST("/authenticate", app.Authenticate)
 	router.GET("/refresh-token", app.RefreshToken)
 	router.GET("/logout", app.Logout)

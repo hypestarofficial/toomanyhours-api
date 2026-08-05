@@ -54,11 +54,12 @@ func (app *application) MeHandler(c *gin.Context) {
 	}
 
 	apiUser := models.APIUser{
-			ID: user.ID,
-			Username: user.Username,
-			Email: user.Email,
-			CreatedAt: user.CreatedAt,
-			UpdatedAt: user.UpdatedAt,
+		ID:         user.ID,
+		Username:   user.Username,
+		Email:      user.Email,
+		Visibility: user.Visibility,
+		CreatedAt:  user.CreatedAt,
+		UpdatedAt:  user.UpdatedAt,
 	}
 
 	c.JSON(http.StatusOK, apiUser) 

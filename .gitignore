@@ -37,3 +37,5 @@ coverage.txt
 
 # --- Backups ---
 backups/
+# Compiled binary from `go build ./cmd/...` (writes to the working directory)
+/api

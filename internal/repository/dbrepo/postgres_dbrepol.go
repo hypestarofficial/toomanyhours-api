@@ -114,6 +114,33 @@ func (m *PostgresDBRepo) GetUserByID(ctx context.Context, id int) (*models.User,
 	return &user, nil
 }
 
+// CreateUser inserts a user. Uniqueness of username and email is enforced by
+// the database, not by a prior SELECT: checking first and inserting second is a
+// race in which two simultaneous registrations both observe the name as free.
+// A unique violation surfaces as gorm.ErrDuplicatedKey, which requires
+// TranslateError to be enabled on the GORM config.
+func (m *PostgresDBRepo) CreateUser(ctx context.Context, user *models.User) error {
+	return m.GormDB.WithContext(ctx).Create(user).Error
+}
+
+// UpdateUser persists username and visibility changes. Password and email are
+// deliberately excluded from the Select: changing either needs its own flow,
+// and listing them here would let a stray zero value blank them.
+func (m *PostgresDBRepo) UpdateUser(ctx context.Context, user *models.User) error {
+	result := m.GormDB.WithContext(ctx).
+		Model(user).
+		Select("Username", "Visibility").
+		Updates(user)
+
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
 func (m *PostgresDBRepo) PostGameToGames(ctx context.Context, game models.Game) (int, error) {
 	var existingGame models.Game
 

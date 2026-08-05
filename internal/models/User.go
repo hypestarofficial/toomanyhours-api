@@ -7,21 +7,29 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// User mirrors the users table. Schema is owned by migrations/, not by these
+// tags: the previous `gorm:"unique"` tags never did anything, because the
+// schema came from a SQL file and AutoMigrate is never called. Uniqueness is
+// enforced by the users_username_lower_idx / users_email_lower_idx indexes.
 type User struct {
-	ID int `json:"id" gorm:"primaryKey"`
-	Username string `json:"username" gorm:"unique"`
-	Email string `json:"email" gorm:"unique"`
-	Password string `json:"-"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID         int       `json:"id" gorm:"primaryKey"`
+	Username   string    `json:"username"`
+	Email      string    `json:"email"`
+	Password   string    `json:"-"`
+	Visibility string    `json:"visibility"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
+// APIUser is the shape sent to clients. It exists so Password can never be
+// serialized by accident.
 type APIUser struct {
-	ID           int       `json:"id"`
-	Username     string    `json:"username"`
-	Email        string    `json:"email"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID         int       `json:"id"`
+	Username   string    `json:"username"`
+	Email      string    `json:"email"`
+	Visibility string    `json:"visibility"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 func (u *User) PasswordMatches(plainTextPassword string) (bool, error) {

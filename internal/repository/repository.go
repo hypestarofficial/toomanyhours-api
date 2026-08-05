@@ -22,6 +22,8 @@ type DatabaseRepo interface {
 	// Users
 	GetUserByEmail(ctx context.Context, email string) (*models.User, error)
 	GetUserByID(ctx context.Context, id int) (*models.User, error)
+	CreateUser(ctx context.Context, user *models.User) error
+	UpdateUser(ctx context.Context, user *models.User) error
 
 	// Games Genres
 	PostGameGenres(ctx context.Context, id int, genreIDs []int) error

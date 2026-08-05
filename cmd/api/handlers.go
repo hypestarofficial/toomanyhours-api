@@ -2,16 +2,34 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 	"toomanyhours-api/internal/models"
+	"toomanyhours-api/internal/validate"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v4"
+	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
+
+// bcryptCost is deliberately above bcrypt.DefaultCost (10). The seeded fixture
+// user was hashed at a different cost and still verifies, because bcrypt
+// encodes the cost inside the hash itself.
+const bcryptCost = 12
+
+// dummyHash is compared against when a login references an unknown email, so
+// that an unknown address costs the same time as a known one with the wrong
+// password. Without it, response timing reveals which accounts exist.
+var dummyHash []byte
+
+func init() {
+	dummyHash, _ = bcrypt.GenerateFromPassword([]byte("timing-equalization-placeholder"), bcryptCost)
+}
 
 // splitAndTrim splits a string by delimiter and trims whitespace from each element
 func splitAndTrim(s string, delimiter string) []string {
@@ -54,14 +72,86 @@ func (app *application) MeHandler(c *gin.Context) {
 	}
 
 	apiUser := models.APIUser{
-			ID: user.ID,
-			Username: user.Username,
-			Email: user.Email,
-			CreatedAt: user.CreatedAt,
-			UpdatedAt: user.UpdatedAt,
+		ID:         user.ID,
+		Username:   user.Username,
+		Email:      user.Email,
+		Visibility: user.Visibility,
+		CreatedAt:  user.CreatedAt,
+		UpdatedAt:  user.UpdatedAt,
 	}
 
 	c.JSON(http.StatusOK, apiUser) 
+}
+
+func (app *application) PatchMe(c *gin.Context) {
+	val, exists := c.Get("userID")
+	if !exists {
+		app.errorJSON(c, errors.New("User context missing"), http.StatusInternalServerError)
+		return
+	}
+	userID, ok := val.(int)
+	if !ok {
+		app.errorJSON(c, errors.New("Invalid user ID type"), http.StatusInternalServerError)
+		return
+	}
+
+	// Pointers distinguish "field absent" from "field explicitly set to empty".
+	var requestPayload struct {
+		Username   *string `json:"username"`
+		Visibility *string `json:"visibility"`
+	}
+
+	if err := c.ShouldBindJSON(&requestPayload); err != nil {
+		app.errorJSON(c, err, http.StatusBadRequest)
+		return
+	}
+
+	if requestPayload.Username == nil && requestPayload.Visibility == nil {
+		app.errorJSON(c, errors.New("nothing to update"), http.StatusBadRequest)
+		return
+	}
+
+	user, err := app.DB.GetUserByID(c, userID)
+	if err != nil {
+		app.errorJSON(c, errors.New("Unknown user"), http.StatusNotFound)
+		return
+	}
+
+	if requestPayload.Username != nil {
+		// Same validator as registration, so the two cannot drift apart.
+		username, err := validate.Username(*requestPayload.Username)
+		if err != nil {
+			app.errorJSON(c, fmt.Errorf("username: %w", err), http.StatusBadRequest)
+			return
+		}
+		user.Username = username
+	}
+
+	if requestPayload.Visibility != nil {
+		if *requestPayload.Visibility != "public" && *requestPayload.Visibility != "private" {
+			app.errorJSON(c, errors.New("visibility must be public or private"), http.StatusBadRequest)
+			return
+		}
+		user.Visibility = *requestPayload.Visibility
+	}
+
+	if err := app.DB.UpdateUser(c, user); err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			app.errorJSON(c, errors.New("username or email already taken"), http.StatusConflict)
+			return
+		}
+		app.errorJSON(c, errors.New("Could not update account"), http.StatusInternalServerError)
+		return
+	}
+
+	c.JSON(http.StatusOK, models.APIUser{
+		ID:         user.ID,
+		Username:   user.Username,
+		Email:      user.Email,
+		Visibility: user.Visibility,
+		CreatedAt:  user.CreatedAt,
+		UpdatedAt:  user.UpdatedAt,
+	})
 }
 
 func (app *application) GetGames(c *gin.Context) {
@@ -117,6 +207,71 @@ func (app *application) GetGenres(c *gin.Context) {
 	c.JSON(http.StatusOK, genres)
 }
 
+func (app *application) Register(c *gin.Context) {
+	var requestPayload struct {
+		Username string `json:"username" binding:"required"`
+		Email    string `json:"email" binding:"required"`
+		Password string `json:"password" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&requestPayload); err != nil {
+		app.errorJSON(c, err, http.StatusBadRequest)
+		return
+	}
+
+	// Same validators the rename flow uses, so the two cannot drift apart.
+	// Both return the normalized value, which is what gets persisted.
+	username, err := validate.Username(requestPayload.Username)
+	if err != nil {
+		app.errorJSON(c, fmt.Errorf("username: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	email, err := validate.Email(requestPayload.Email)
+	if err != nil {
+		app.errorJSON(c, fmt.Errorf("email: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	if err := validate.Password(requestPayload.Password); err != nil {
+		app.errorJSON(c, errors.New("password must be between 8 and 72 characters"), http.StatusBadRequest)
+		return
+	}
+
+	hashed, err := bcrypt.GenerateFromPassword([]byte(requestPayload.Password), bcryptCost)
+	if err != nil {
+		app.errorJSON(c, errors.New("Could not create account"), http.StatusInternalServerError)
+		return
+	}
+
+	user := models.User{
+		Username:   username,
+		Email:      email,
+		Password:   string(hashed),
+		Visibility: "public",
+	}
+
+	if err := app.DB.CreateUser(c, &user); err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			// Deliberately does not say which field collided: naming the email
+			// would let anyone test whether an address has an account here.
+			app.errorJSON(c, errors.New("username or email already taken"), http.StatusConflict)
+			return
+		}
+		app.errorJSON(c, errors.New("Could not create account"), http.StatusInternalServerError)
+		return
+	}
+
+	tokens, err := app.auth.GenerateTokenPair(&jwtUser{ID: user.ID, Username: user.Username})
+	if err != nil {
+		app.errorJSON(c, err, http.StatusInternalServerError)
+		return
+	}
+
+	http.SetCookie(c.Writer, app.auth.GetRefreshCookie(tokens.RefreshToken))
+	c.JSON(http.StatusCreated, tokens)
+}
+
 func (app *application) Authenticate(c *gin.Context) {
 	var requestPayload struct {
 		Email string `json:"email" binding:"required,email"`
@@ -131,6 +286,10 @@ func (app *application) Authenticate(c *gin.Context) {
 
 	user, err := app.DB.GetUserByEmail(c, requestPayload.Email)
 	if err != nil {
+		// Spend the same time hashing as a real comparison would. Returning
+		// immediately here made an unknown email measurably faster than a known
+		// one with a wrong password, which leaks which accounts exist.
+		bcrypt.CompareHashAndPassword(dummyHash, []byte(requestPayload.Password))
 		app.errorJSON(c, errors.New("Invalid credentials"), http.StatusBadRequest)
 		return
 	}

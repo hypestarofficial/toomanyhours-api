@@ -58,6 +58,21 @@ password: devpassword
 
 Registration reserves the username `admin`, so this row can only be created by the seed. It is a local development fixture — do not deploy it anywhere reachable from the internet.
 
+## API contract
+
+`openapi.yml` is a **generated artifact**, written by reading the handlers in `cmd/api/`. It is not hand-edited, and there are no annotations in the Go source.
+
+The frontend's API client is generated from it:
+
+```bash
+npx -y @redocly/cli@latest lint openapi.yml   # validate the spec
+cd ../toomanyhours && npm run codegen          # regenerate the TypeScript client
+```
+
+After changing routes, handlers, or models: regenerate the spec, run `npm run codegen`, and commit both. Nothing enforces that the spec matches the handlers, so that habit is the only thing keeping the generated types honest.
+
+The spec documents what the handlers actually do, not what they should. Three examples worth knowing: `/authenticate` returns **202**, `GET /games/{id}` returns **500** for both a malformed id and a missing game, and `DELETE /admin/games/{id}` returns a literal `null` body.
+
 ## Tests
 
 ```bash

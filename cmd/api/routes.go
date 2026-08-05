@@ -37,7 +37,7 @@ func (app *application) routes() *gin.Engine {
 		auth.GET("/users/:id", app.GetUserByID)
 		
 		// Games
-		auth.GET("/games", app.GetGames) // query params: title, genreIDs
+		auth.GET("/games", app.GetGames) // query params: title, genreIds
 		auth.GET("/games/:id", app.GetGameByGameId)
 
 		// Genres
@@ -48,7 +48,7 @@ func (app *application) routes() *gin.Engine {
 	admin := auth.Group("/admin")
 	{
 		// Admin Games Catalog (games with genres)
-		admin.GET("/games", app.GetGames) // query params: title, genreIDs
+		admin.GET("/games", app.GetGames) // query params: title, genreIds
 		admin.POST("/games", app.PostGameToGames)
 		admin.PUT("/games/:id", app.PutGameByGameId)
 		admin.DELETE("/games/:id", app.DeleteGameByGameId)

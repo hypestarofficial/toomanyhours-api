@@ -31,6 +31,7 @@ func (app *application) routes() *gin.Engine {
 	{
 		// Me
 		auth.GET("/me", app.MeHandler)
+		auth.PATCH("/me", app.PatchMe)
 
 		// Users
 		auth.GET("/users/:id", app.GetUserByID)

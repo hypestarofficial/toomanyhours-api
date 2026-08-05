@@ -83,6 +83,77 @@ func (app *application) MeHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, apiUser) 
 }
 
+func (app *application) PatchMe(c *gin.Context) {
+	val, exists := c.Get("userID")
+	if !exists {
+		app.errorJSON(c, errors.New("User context missing"), http.StatusInternalServerError)
+		return
+	}
+	userID, ok := val.(int)
+	if !ok {
+		app.errorJSON(c, errors.New("Invalid user ID type"), http.StatusInternalServerError)
+		return
+	}
+
+	// Pointers distinguish "field absent" from "field explicitly set to empty".
+	var requestPayload struct {
+		Username   *string `json:"username"`
+		Visibility *string `json:"visibility"`
+	}
+
+	if err := c.ShouldBindJSON(&requestPayload); err != nil {
+		app.errorJSON(c, err, http.StatusBadRequest)
+		return
+	}
+
+	if requestPayload.Username == nil && requestPayload.Visibility == nil {
+		app.errorJSON(c, errors.New("nothing to update"), http.StatusBadRequest)
+		return
+	}
+
+	user, err := app.DB.GetUserByID(c, userID)
+	if err != nil {
+		app.errorJSON(c, errors.New("Unknown user"), http.StatusNotFound)
+		return
+	}
+
+	if requestPayload.Username != nil {
+		// Same validator as registration, so the two cannot drift apart.
+		username, err := validate.Username(*requestPayload.Username)
+		if err != nil {
+			app.errorJSON(c, fmt.Errorf("username: %w", err), http.StatusBadRequest)
+			return
+		}
+		user.Username = username
+	}
+
+	if requestPayload.Visibility != nil {
+		if *requestPayload.Visibility != "public" && *requestPayload.Visibility != "private" {
+			app.errorJSON(c, errors.New("visibility must be public or private"), http.StatusBadRequest)
+			return
+		}
+		user.Visibility = *requestPayload.Visibility
+	}
+
+	if err := app.DB.UpdateUser(c, user); err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			app.errorJSON(c, errors.New("username or email already taken"), http.StatusConflict)
+			return
+		}
+		app.errorJSON(c, errors.New("Could not update account"), http.StatusInternalServerError)
+		return
+	}
+
+	c.JSON(http.StatusOK, models.APIUser{
+		ID:         user.ID,
+		Username:   user.Username,
+		Email:      user.Email,
+		Visibility: user.Visibility,
+		CreatedAt:  user.CreatedAt,
+		UpdatedAt:  user.UpdatedAt,
+	})
+}
+
 func (app *application) GetGames(c *gin.Context) {
 	title := c.Query("title")
 	genreIDsStr := c.Query("genreIDs")
@@ -215,6 +286,10 @@ func (app *application) Authenticate(c *gin.Context) {
 
 	user, err := app.DB.GetUserByEmail(c, requestPayload.Email)
 	if err != nil {
+		// Spend the same time hashing as a real comparison would. Returning
+		// immediately here made an unknown email measurably faster than a known
+		// one with a wrong password, which leaks which accounts exist.
+		bcrypt.CompareHashAndPassword(dummyHash, []byte(requestPayload.Password))
 		app.errorJSON(c, errors.New("Invalid credentials"), http.StatusBadRequest)
 		return
 	}

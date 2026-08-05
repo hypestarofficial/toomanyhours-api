@@ -272,6 +272,37 @@ func (app *application) Register(c *gin.Context) {
 	c.JSON(http.StatusCreated, tokens)
 }
 
+// loginRateKey normalizes an email for use as a limiter key, so Bob@x.com and
+// bob@x.com share one bucket instead of doubling an attacker's budget.
+//
+// Deliberately not validate.Email: that returns an error for malformed input,
+// and a login attempt with a junk address still needs counting rather than
+// slipping onto a different code path.
+func loginRateKey(email string) string {
+	return strings.ToLower(strings.TrimSpace(email))
+}
+
+// loginBlocked reports whether either limiter refuses this attempt. It returns
+// the longer of the two waits, so a client that honours Retry-After is not
+// refused again the moment it retries.
+func (app *application) loginBlocked(ipKey, emailKey string) (time.Duration, bool) {
+	ipOK, ipWait := app.loginIPLimiter.Check(ipKey)
+	emailOK, emailWait := app.loginEmailLimiter.Check(emailKey)
+
+	if ipOK && emailOK {
+		return 0, false
+	}
+	return max(ipWait, emailWait), true
+}
+
+// recordLoginFailure counts a failed attempt against both keys. Unknown email
+// and wrong password count identically — distinguishing them here would leak
+// which accounts exist, which the dummy-hash comparison exists to prevent.
+func (app *application) recordLoginFailure(ipKey, emailKey string) {
+	app.loginIPLimiter.RecordFailure(ipKey)
+	app.loginEmailLimiter.RecordFailure(emailKey)
+}
+
 func (app *application) Authenticate(c *gin.Context) {
 	var requestPayload struct {
 		Email string `json:"email" binding:"required,email"`
@@ -284,21 +315,51 @@ func (app *application) Authenticate(c *gin.Context) {
 		return
 	}
 
+	ipKey := c.ClientIP()
+	emailKey := loginRateKey(requestPayload.Email)
+
+	// Checked before the lookup and before bcrypt. Skipping that work is the
+	// point: login is the only endpoint that hashes unauthenticated input, so
+	// a check placed after it would stop guessing but not the CPU cost.
+	if retryAfter, blocked := app.loginBlocked(ipKey, emailKey); blocked {
+		// Round up: telling a client to wait 0 seconds invites an instant retry.
+		seconds := int((retryAfter + time.Second - 1) / time.Second)
+		if seconds < 1 {
+			seconds = 1
+		}
+
+		c.Header("Retry-After", strconv.Itoa(seconds))
+		app.errorJSON(
+			c,
+			fmt.Errorf("Too many login attempts. Try again in %d seconds.", seconds),
+			http.StatusTooManyRequests,
+		)
+		return
+	}
+
 	user, err := app.DB.GetUserByEmail(c, requestPayload.Email)
 	if err != nil {
 		// Spend the same time hashing as a real comparison would. Returning
 		// immediately here made an unknown email measurably faster than a known
 		// one with a wrong password, which leaks which accounts exist.
 		bcrypt.CompareHashAndPassword(dummyHash, []byte(requestPayload.Password))
+		app.recordLoginFailure(ipKey, emailKey)
 		app.errorJSON(c, errors.New("Invalid credentials"), http.StatusBadRequest)
 		return
 	}
 
 	valid, err := user.PasswordMatches(requestPayload.Password)
 	if err != nil || !valid {
+		app.recordLoginFailure(ipKey, emailKey)
 		app.errorJSON(c, errors.New("Invalid credentials"), http.StatusBadRequest)
 		return
 	}
+
+	// Credentials were right, so earlier fumbles stop counting. Done here rather
+	// than after token generation: a 500 minting tokens is not the user's fault
+	// and should not leave them closer to a block.
+	app.loginIPLimiter.Reset(ipKey)
+	app.loginEmailLimiter.Reset(emailKey)
 
 	u := jwtUser{
 		ID: user.ID,

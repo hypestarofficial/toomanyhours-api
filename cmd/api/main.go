@@ -7,6 +7,7 @@ import (
 	"net/mail"
 	"os"
 	"time"
+	"toomanyhours-api/internal/ratelimit"
 	"toomanyhours-api/internal/repository/dbrepo"
 
 	"github.com/gin-gonic/gin/binding"
@@ -25,6 +26,11 @@ type application struct {
 	JWTIssuer string
 	JWTAudience string
 	CookieDomain string
+	// Login limiters. Two keys because they defend different attacks: per-IP
+	// catches password spraying across many accounts, per-email catches a
+	// brute force against one account even from rotating addresses.
+	loginIPLimiter *ratelimit.Limiter
+	loginEmailLimiter *ratelimit.Limiter
 }
 
 func emailValidator(fl validator.FieldLevel) bool {
@@ -115,6 +121,18 @@ func main() {
 		CookieName: "__Host-refresh_token", // secure, httponly, samesite=lax cookie name
 		CookieDomain: "",
 	}
+
+	// 20 failures per 15 minutes from one address. Far more than a person who
+	// forgot their password produces, low enough to cap how much bcrypt work a
+	// single attacker can force.
+	app.loginIPLimiter = ratelimit.New(20, 15*time.Minute)
+
+	// 5 failures per minute against one account. The window is short on
+	// purpose: anyone who knows a friend's email can hold that account blocked
+	// by failing logins, so the block has to expire fast. It still caps a
+	// distributed attacker at 300 guesses an hour, which against bcrypt is
+	// nothing.
+	app.loginEmailLimiter = ratelimit.New(5, time.Minute)
 
 	log.Printf("starting tooManyHours API server on %s:%s", app.Domain, port)
 	log.Printf("version: %s", version)

@@ -132,6 +132,18 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '429':
+          description: >-
+            Too many failed attempts, either from this address (20 per 15
+            minutes) or against this account (5 per minute). The body is
+            identical whether or not the account exists.
+          headers:
+            Retry-After:
+              description: Seconds to wait before attempting again
+              schema: { type: integer }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
         '500':
           description: Token generation failed
           content:

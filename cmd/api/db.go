@@ -34,7 +34,14 @@ func (app *application) connectGormDB() (*gorm.DB, error) {
 
 	gormDB, err := gorm.Open(pg_driver.New(pg_driver.Config{
 		Conn: sqlDB,
-	}), &gorm.Config{})
+	}), &gorm.Config{
+		// Converts driver-specific errors (Postgres 23505 and friends) into
+		// GORM sentinels such as gorm.ErrDuplicatedKey. Without this, a unique
+		// violation arrives as a raw *pgconn.PgError, errors.Is against
+		// gorm.ErrDuplicatedKey is always false, and handlers that mean to
+		// return 409 silently return 500 instead.
+		TranslateError: true,
+	})
 	if err != nil {
 		return nil, err
 	}

@@ -14,5 +14,14 @@ services:
     ports:
       - '${DB_PORT}:5432'
     volumes:
-      - ./postgres-data:/var/lib/postgresql/data
-      - ./sql/create_tables.sql:/docker-entrypoint-initdb.d/create_tables.sql
+      # A named volume, not a bind mount. Binding ./postgres-data put a
+      # root-owned directory inside the Go module, which broke every
+      # `go build|vet|test ./...` walk and made resetting the database need
+      # sudo. With a named volume, `docker compose down -v` is enough.
+      #
+      # Schema is no longer applied by docker-entrypoint-initdb.d: it comes
+      # from golang-migrate (see migrations/), and seed content from sql/seed.sql.
+      - postgres-data:/var/lib/postgresql/data
+
+volumes:
+  postgres-data:

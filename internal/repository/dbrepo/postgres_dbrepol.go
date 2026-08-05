@@ -141,18 +141,31 @@ func (m *PostgresDBRepo) PostGameGenres(ctx context.Context, id int, genreIDs []
 	var game models.Game
 	game.ID = id
 
-	var genres []models.Genre
-	for _, gid := range genreIDs {
-		genres = append(genres, models.Genre{ID: gid})
-	}
-
+	// First, clear all existing genre associations
 	err := m.GormDB.WithContext(ctx).
 		Model(&game).
 		Association("Genres").
-		Replace(genres)
+		Clear()
 
 	if err != nil {
 		return err
+	}
+
+	// Then, add the new genres
+	if len(genreIDs) > 0 {
+		var genres []models.Genre
+		for _, gid := range genreIDs {
+			genres = append(genres, models.Genre{ID: gid})
+		}
+
+		err = m.GormDB.WithContext(ctx).
+			Model(&game).
+			Association("Genres").
+			Append(genres)
+
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

@@ -1,96 +1,535 @@
 openapi: 3.0.3
+
+# GENERATED ARTIFACT — DO NOT HAND-EDIT.
+#
+# This file is produced by reading the Go handlers in cmd/api/. Regenerate it
+# after any change to routes, handlers, or models, then run `npm run codegen`
+# in ../toomanyhours. Hand edits are lost on the next regeneration and, worse,
+# produce a document that matches neither the Go code nor the generated client.
+#
+# It describes what the handlers actually do, including responses that are
+# arguably wrong (see GET /games/{id}). Documenting the intended behaviour
+# instead would make the generated client disagree with the running server.
+
 info:
-  title: Games API
-  description: API for managing games and user profiles
-  version: 0.1.1
+  title: TooManyHours API
+  description: |
+    Game tracking API. Users keep a list across three categories and share it
+    at a public profile URL.
+
+    There is no document-level `security` default: every protected operation
+    declares `BearerAuth` explicitly, so an operation without a `security`
+    block is genuinely public.
+  version: 0.2.0
 
 servers:
   - url: http://localhost:3130
-    description: Local development server
+    description: >-
+      Local development server. The frontend does not call this directly — Vite
+      proxies /api/* here and strips the prefix.
+
+tags:
+  - name: Health
+    description: Liveness
+  - name: Auth
+    description: Registration, login, token refresh, logout
+  - name: Users
+    description: The authenticated user and user lookup
+  - name: Games
+    description: Read-only game catalog
+  - name: Genres
+    description: Genre reference data
+  - name: Admin
+    description: Catalog mutation. Temporary scaffolding; no role check.
 
 paths:
-  # --- Public Routes ---
-  /authenticate:
-    post:
-      summary: Login to get a token
-      tags: [Auth]
+  /:
+    get:
+      operationId: getHealth
+      summary: Health check
+      tags: [Health]
+      security: []   # deliberately public
       responses:
         '200':
-          description: Successful login
+          description: Service is running
           content:
-            application/json: {}
+            application/json:
+              schema:
+                type: object
+                required: [status, message, version]
+                properties:
+                  status: { type: string, example: active }
+                  message: { type: string }
+                  version: { type: string }
+
+  /register:
+    post:
+      operationId: register
+      summary: Create an account and log in
+      description: >-
+        Returns the same token pair as `/authenticate` and sets the
+        `__Host-refresh_token` cookie, so a successful signup leaves the caller
+        authenticated. Collision errors do not reveal which field matched.
+      tags: [Auth]
+      security: []   # deliberately public
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '201':
+          description: Account created; tokens returned and refresh cookie set
+          headers:
+            Set-Cookie:
+              description: __Host-refresh_token; HttpOnly, Secure, SameSite=Strict
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenPairs' }
+        '400':
+          description: Validation failed (length, charset, reserved, profane, weak password)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Username or email already taken
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          description: Hashing or persistence failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /authenticate:
+    post:
+      operationId: authenticate
+      summary: Log in
+      description: >-
+        Returns 202 Accepted, not 200. Treating 200 as the success code would
+        make a generated client reject every real login.
+      tags: [Auth]
+      security: []   # deliberately public
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AuthenticateRequest' }
+      responses:
+        '202':
+          description: Authenticated; tokens returned and refresh cookie set
+          headers:
+            Set-Cookie:
+              description: __Host-refresh_token; HttpOnly, Secure, SameSite=Strict
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenPairs' }
+        '400':
+          description: Malformed body, or invalid credentials
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          description: Token generation failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
 
   /refresh-token:
     get:
-      summary: Refresh the current JWT
+      operationId: refreshToken
+      summary: Exchange the refresh cookie for a new token pair
+      description: >-
+        Authenticated by the `__Host-refresh_token` cookie rather than a bearer
+        token, so the caller must send credentials with the request.
       tags: [Auth]
+      security: []   # deliberately public
       responses:
         '200':
-          description: Token refreshed
+          description: New token pair issued and refresh cookie rotated
           content:
-            application/json: {}
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenPairs' }
+        '401':
+          description: Cookie missing or invalid, or the user no longer exists
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          description: Token generation failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
 
-  # --- Admin Routes ---
-  /admin/games:
+  /logout:
     get:
-      summary: View full game catalog (Admin only)
-      tags: [Admin]
-      security:
-        - BearerAuth: []
+      operationId: logout
+      summary: Clear the refresh cookie
+      description: >-
+        Always succeeds. The access token lives in client memory and is
+        discarded there.
+      tags: [Auth]
+      security: []   # deliberately public
       responses:
         '200':
-          description: List of all games for administration
+          description: Refresh cookie expired
           content:
-            application/json: {}
+            application/json:
+              schema:
+                type: object
+                required: [message]
+                properties:
+                  message: { type: string, example: Logged out }
 
-  # --- Authorized Routes ---
-  /games:
+  /me:
     get:
-      summary: Get list of games
-      tags: [Games]
+      operationId: getMe
+      summary: Get the authenticated user
+      tags: [Users]
       security:
         - BearerAuth: []
       responses:
         '200':
-          description: A list of games
+          description: The authenticated user
           content:
-            application/json: {}
-          
-  /games/{id}:
-    get:
-      summary: Get a single game by ID
-      tags: [Games]
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '400':
+          description: User lookup failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          description: Missing, malformed, or expired bearer token
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          description: User context missing from the request
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+    patch:
+      operationId: patchMe
+      summary: Update username and/or profile visibility
+      description: >-
+        At least one property must be present. The username is validated by the
+        same rules as registration and stored lowercased.
+      tags: [Users]
       security:
         - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PatchMeRequest' }
       responses:
         '200':
-          description: Game details
+          description: The updated user
           content:
-            application/json: {}
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '400':
+          description: Empty body, invalid username, or invalid visibility
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          description: Missing, malformed, or expired bearer token
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: The user no longer exists
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Username already taken
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          description: Update failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
 
   /users/{id}:
     get:
-      summary: Get user profile
+      operationId: getUserById
+      summary: Get a user by id
       tags: [Users]
+      security:
+        - BearerAuth: []
       parameters:
         - name: id
           in: path
           required: true
-          schema:
-            type: string
+          schema: { type: integer }
+      responses:
+        '200':
+          description: The user
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '400':
+          description: The id is not an integer
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          description: Missing, malformed, or expired bearer token
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          description: Lookup failed, including when no such user exists
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /games:
+    get:
+      operationId: getGames
+      summary: List games
+      tags: [Games]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TitleQuery'
+        - $ref: '#/components/parameters/GenreIdsQuery'
+      responses:
+        '200':
+          description: Games ordered by title
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Game' }
+        '401':
+          description: Missing, malformed, or expired bearer token
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          description: Query failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /games/{id}:
+    get:
+      operationId: getGameById
+      summary: Get a game by id
+      description: >-
+        Returns 500 both for a non-integer id and for a game that does not
+        exist. That is what the handler does today; it is documented rather than
+        corrected so the generated client matches the running server.
+      tags: [Games]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Steam app ID
+          schema: { type: integer }
+      responses:
+        '200':
+          description: The game, with its genres
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Game' }
+        '401':
+          description: Missing, malformed, or expired bearer token
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          description: Malformed id, or no such game
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /genres:
+    get:
+      operationId: getGenres
+      summary: List all genres
+      tags: [Genres]
       security:
         - BearerAuth: []
       responses:
         '200':
-          description: User data
+          description: Genres ordered by name
           content:
-            application/json: {}
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Genre' }
+        '401':
+          description: Missing, malformed, or expired bearer token
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          description: Query failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /admin/games:
+    get:
+      operationId: getAdminGames
+      summary: List games (admin catalog)
+      description: >-
+        The same handler as GET /games. Inherits only AuthRequired — there is no
+        role check, so any authenticated user may call this and the mutating
+        operations below. Knowingly accepted while the admin panel is temporary
+        scaffolding.
+      tags: [Admin]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TitleQuery'
+        - $ref: '#/components/parameters/GenreIdsQuery'
+      responses:
+        '200':
+          description: Games ordered by title
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Game' }
+        '401':
+          description: Missing, malformed, or expired bearer token
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          description: Query failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+    post:
+      operationId: createGame
+      summary: Add a game to the catalog
+      description: >-
+        Effectively an upsert by Steam app ID: if a row with the supplied id
+        already exists, that row is returned unchanged rather than an error, but
+        its genre associations are still replaced by genreIds.
+      tags: [Admin]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GameRequest' }
+      responses:
+        '201':
+          description: The stored game, re-read with its genres
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Game' }
+        '400':
+          description: Malformed body
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          description: Missing, malformed, or expired bearer token
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          description: Persistence failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /admin/games/{id}:
+    put:
+      operationId: updateGame
+      summary: Update a game
+      description: >-
+        Updates title, image and release date, then replaces all genre
+        associations with genreIds. Omitting genreIds clears them: this is a
+        full replace, not a merge.
+      tags: [Admin]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Steam app ID
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GameRequest' }
+      responses:
+        '200':
+          description: The updated game, re-read with its genres
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Game' }
+        '400':
+          description: Malformed id or body
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          description: Missing, malformed, or expired bearer token
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: No such game
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          description: Update failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+    delete:
+      operationId: deleteGame
+      summary: Delete a game
+      description: Hard delete. Cascades to games_genres via foreign key.
+      tags: [Admin]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Steam app ID
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Deleted. The response body is the JSON literal null.
+          content:
+            application/json:
+              schema:
+                type: object
+                nullable: true
+        '401':
+          description: Missing, malformed, or expired bearer token
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          description: Malformed id, or no such game
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
 
 components:
   securitySchemes:
@@ -98,3 +537,156 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+      description: >-
+        A 15-minute access token from /authenticate, /register or
+        /refresh-token.
+
+  parameters:
+    TitleQuery:
+      name: title
+      in: query
+      required: false
+      description: Case-sensitive substring match on the game title.
+      schema: { type: string }
+
+    GenreIdsQuery:
+      name: genreIds
+      in: query
+      required: false
+      description: >-
+        Comma-separated genre ids, for example `1,4,12`. A string, not an
+        array — the handler splits on commas itself. Games matching any of the
+        ids are returned, and unparseable entries are skipped silently.
+      schema: { type: string }
+
+  schemas:
+    Genre:
+      type: object
+      required: [id, genre]
+      properties:
+        id: { type: integer, example: 7 }
+        genre: { type: string, example: FPS }
+
+    Game:
+      type: object
+      required: [id, title, image, releaseDate]
+      properties:
+        id:
+          type: integer
+          example: 730
+          description: Steam app ID, supplied by the client rather than generated.
+        title: { type: string }
+        image:
+          type: string
+          description: Absolute URL to cover art.
+        releaseDate: { type: string, format: date-time }
+        genres:
+          type: array
+          description: Present on reads, omitted when empty.
+          items: { $ref: '#/components/schemas/Genre' }
+        genreIds:
+          type: array
+          description: >-
+            Write-only, and never present in a response — the Go field is
+            gorm:"-", so it is transport only.
+          items: { type: integer }
+
+    GameRequest:
+      type: object
+      required: [title, image, releaseDate]
+      properties:
+        id:
+          type: integer
+          description: >-
+            Steam app ID. Required on create; ignored on update, where the path
+            parameter identifies the game.
+        title: { type: string }
+        image: { type: string }
+        releaseDate: { type: string, format: date-time }
+        genreIds:
+          type: array
+          description: >-
+            Replaces all existing genre associations. Omitting it clears them.
+          items: { type: integer }
+
+    User:
+      type: object
+      required: [id, username, email, visibility, created_at, updated_at]
+      properties:
+        id: { type: integer }
+        username:
+          type: string
+          description: Lowercase, unique, and the public profile URL key.
+        email: { type: string, format: email }
+        visibility:
+          type: string
+          enum: [public, private]
+          description: >-
+            Stored and editable, but not yet read by anything — public profiles
+            are a later phase.
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    TokenPairs:
+      type: object
+      required: [access_token, refresh_token]
+      properties:
+        access_token:
+          type: string
+          description: HS256 JWT, 15 minute expiry. Held in memory by the client.
+        refresh_token:
+          type: string
+          description: >-
+            HS256 JWT, 24 hour expiry. Also set as the __Host-refresh_token
+            cookie; the frontend uses the cookie, not this copy.
+
+    RegisterRequest:
+      type: object
+      required: [username, email, password]
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 16
+          description: >-
+            Lowercased server-side, so mixed case is accepted and normalized.
+            After normalization it must match [a-z0-9_]+. Reserved names (admin,
+            api, me, settings, login, logout, register, support, about, help,
+            root, u) and profanity are rejected.
+        email: { type: string, format: email }
+        password:
+          type: string
+          minLength: 8
+          maxLength: 72
+          description: >-
+            The maximum is 72 bytes, the point past which bcrypt silently
+            truncates.
+
+    AuthenticateRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+
+    PatchMeRequest:
+      type: object
+      description: >-
+        At least one property must be present; an empty object is a 400.
+      properties:
+        username: { type: string, minLength: 3, maxLength: 16 }
+        visibility: { type: string, enum: [public, private] }
+
+    ErrorResponse:
+      type: object
+      description: >-
+        The envelope produced by app.errorJSON, shared by every failure
+        response.
+      required: [error, message]
+      properties:
+        error: { type: boolean, example: true }
+        message: { type: string }
+        data:
+          description: >-
+            Declared by the Go struct but never populated by the current
+            handlers.

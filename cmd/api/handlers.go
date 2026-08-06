@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -49,7 +48,7 @@ func (app *application) Home(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "active",
 		"message": "tooManyHours API is running",
-		"version": os.Getenv("VERSION"),
+		"version": apiVersion,
 	})
 }
 

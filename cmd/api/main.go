@@ -17,6 +17,15 @@ import (
 	"gorm.io/gorm"
 )
 
+// apiVersion is the API's own version, independent of the frontend's: two
+// repositories with two histories.
+//
+// A constant rather than an env var. It used to be os.Getenv("VERSION") read
+// from .env, which is gitignored — so GET / reported an empty string on any
+// checkout but this one. A version that only exists on one machine is not a
+// version.
+const apiVersion = "0.4.0"
+
 type application struct {
 	DSN          string
 	Domain       string
@@ -75,7 +84,6 @@ func main() {
 	godotenv.Load()
 
 	// get environment variables
-	version := os.Getenv("VERSION")
 	port := os.Getenv("PORT")
 	dbUser := os.Getenv("DB_USER")
 	dbPass := os.Getenv("DB_PASSWORD")
@@ -164,7 +172,7 @@ func main() {
 	app.loginEmailLimiter = ratelimit.New(5, time.Minute)
 
 	log.Printf("starting tooManyHours API server on %s:%s", app.Domain, port)
-	log.Printf("version: %s", version)
+	log.Printf("version: %s", apiVersion)
 
 	// start a web server
 	err = app.routes().Run(fmt.Sprintf(":%s", port))

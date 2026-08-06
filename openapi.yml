@@ -906,11 +906,14 @@ components:
           type: string
           enum: [finished, currently_playing, want_to_play]
         rating:
-          type: integer
-          minimum: 1
+          type: number
+          multipleOf: 0.5
+          minimum: 0.5
           maximum: 10
           nullable: true
-          description: 1-10, or null when unrated.
+          description: >-
+            0.5-10 in half-steps, or null when unrated. Ten stars at half-step
+            resolution, so 6.5 stars is a rating of 6.5.
         review:
           type: string
           nullable: true
@@ -948,10 +951,11 @@ components:
           type: string
           enum: [finished, currently_playing, want_to_play]
         rating:
-          type: integer
+          type: number
+          multipleOf: 0.5
           minimum: 0
           maximum: 10
-          description: 1-10 to set, 0 to clear.
+          description: 0.5-10 in half-steps to set, 0 to clear.
         review:
           type: string
           description: Text to set, empty string to clear.

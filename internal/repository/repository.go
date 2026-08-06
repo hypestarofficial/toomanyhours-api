@@ -18,6 +18,7 @@ type DatabaseRepo interface {
 
 	// Users
 	GetUserByEmail(ctx context.Context, email string) (*models.User, error)
+	GetUserByUsername(ctx context.Context, username string) (*models.User, error)
 	GetUserByID(ctx context.Context, id int) (*models.User, error)
 	CreateUser(ctx context.Context, user *models.User) error
 	UpdateUser(ctx context.Context, user *models.User) error

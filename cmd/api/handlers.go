@@ -155,62 +155,6 @@ func (app *application) PatchMe(c *gin.Context) {
 	})
 }
 
-func (app *application) GetGames(c *gin.Context) {
-	title := c.Query("title")
-	genreIDsStr := c.Query("genreIds")
-
-	var genreIDs []int
-	if genreIDsStr != "" {
-		// Split comma-separated genre IDs
-		genreIDsStrSlice := splitAndTrim(genreIDsStr, ",")
-		for _, idStr := range genreIDsStrSlice {
-			id, err := strconv.Atoi(idStr)
-			if err == nil {
-				genreIDs = append(genreIDs, id)
-			}
-		}
-	}
-
-	// Opt-in. Absent means the caller wants the catalog as it is, which is what
-	// every existing caller wants.
-	excludeUserID := 0
-	if c.Query("excludeMine") == "true" {
-		// From the verified token, never the request: a user id in the query
-		// string would let anyone ask what somebody else has not played.
-		userID, ok := app.currentUserID(c)
-		if !ok {
-			return
-		}
-		excludeUserID = userID
-	}
-
-	games, err := app.DB.GetGames(c, title, genreIDs, excludeUserID)
-	if err != nil {
-		app.errorJSON(c, err, http.StatusInternalServerError)
-		return
-	}
-
-	c.JSON(http.StatusOK, games)
-}
-
-func (app *application) GetGameByGameId(c *gin.Context) {
-	id := c.Param("id")
-
-	gameId, err := strconv.Atoi(id)
-	if err != nil {
-		app.errorJSON(c, err, http.StatusInternalServerError)
-		return
-	}
-
-	game, err := app.DB.GetGameByGameId(c, gameId)
-	if err != nil {
-		app.errorJSON(c, err, http.StatusInternalServerError)
-		return
-	}
-
-	c.JSON(http.StatusOK, game)
-}
-
 func (app *application) GetGenres(c *gin.Context) {
 	genres, err := app.DB.GetGenres(c)
 	if err != nil {
@@ -556,37 +500,4 @@ func (app *application) Logout(c *gin.Context) {
 
 	http.SetCookie(c.Writer, app.auth.GetExpiredRefreshCookie(""))
 	c.JSON(http.StatusOK, gin.H{"message": "Logged out"})
-}
-
-func (app *application) DeleteGameByGameId(c *gin.Context) {
-	id := c.Param("id")
-
-	gameId, err := strconv.Atoi(id)
-	if err != nil {
-		app.errorJSON(c, err, http.StatusInternalServerError)
-		return
-	}
-
-	err = app.DB.DeleteGameByGameId(c, gameId)
-	if err != nil {
-		// user_games.game_id is ON DELETE RESTRICT, so Postgres refuses to
-		// delete a game somebody has listed. That is deliberate — it stops one
-		// admin click destroying everyone's ratings and reviews — and the
-		// caller deserves a 409 saying so rather than a 500 that reads as a
-		// crash.
-		//
-		// Matched by sentinel, not by constraint name: TranslateError replaces
-		// the driver error with gorm.ErrForeignKeyViolated, so the name is
-		// already gone by the time it arrives here. user_games is the only
-		// RESTRICT reference to games — games_genres cascades — so this is
-		// unambiguous.
-		if errors.Is(err, gorm.ErrForeignKeyViolated) {
-			app.errorJSON(c, errors.New("Game is in someone's list"), http.StatusConflict)
-			return
-		}
-		app.errorJSON(c, err, http.StatusInternalServerError)
-		return
-	}
-
-	c.JSON(http.StatusOK, nil)
 }

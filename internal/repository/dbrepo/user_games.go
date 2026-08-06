@@ -49,24 +49,6 @@ func (m *PostgresDBRepo) GetUserGames(ctx context.Context, userID int) ([]*model
 	return entries, nil
 }
 
-// GamesExist reports whether every id is present in the catalog. Checked before
-// an upsert so an unknown id becomes a 404 rather than a foreign-key violation
-// surfacing as a 500.
-func (m *PostgresDBRepo) GamesExist(ctx context.Context, gameIDs []int) (bool, error) {
-	var found int64
-
-	err := m.GormDB.WithContext(ctx).
-		Model(&models.Game{}).
-		Where("id IN ?", gameIDs).
-		Distinct("id").
-		Count(&found).Error
-
-	if err != nil {
-		return false, err
-	}
-	return found == int64(len(gameIDs)), nil
-}
-
 // AddUserGames adds games to a user's list.
 //
 // No ON CONFLICT clause: a game already in the list violates

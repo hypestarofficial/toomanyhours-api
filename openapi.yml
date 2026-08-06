@@ -41,8 +41,6 @@ tags:
     description: Read-only game catalog
   - name: Genres
     description: Genre reference data
-  - name: Admin
-    description: Catalog mutation. Temporary scaffolding; no role check.
 
 paths:
   /:
@@ -489,43 +487,6 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
 
-  /games:
-    get:
-      operationId: getGames
-      summary: List games
-      tags: [Games]
-      security:
-        - BearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/TitleQuery'
-        - $ref: '#/components/parameters/GenreIdsQuery'
-        - name: excludeMine
-          in: query
-          required: false
-          description: >-
-            When `true`, omits games already in the caller's list. Opt-in: this
-            endpoint otherwise describes the whole catalog. The user is taken
-            from the bearer token, not from the request.
-          schema: { type: boolean }
-      responses:
-        '200':
-          description: Games ordered by title
-          content:
-            application/json:
-              schema:
-                type: array
-                items: { $ref: '#/components/schemas/Game' }
-        '401':
-          description: Missing, malformed, or expired bearer token
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
-        '500':
-          description: Query failed
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
-
   /games/search:
     get:
       operationId: searchGames
@@ -578,40 +539,6 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
 
-  /games/{id}:
-    get:
-      operationId: getGameById
-      summary: Get a game by id
-      description: >-
-        Returns 500 both for a non-integer id and for a game that does not
-        exist. That is what the handler does today; it is documented rather than
-        corrected so the generated client matches the running server.
-      tags: [Games]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          description: Steam app ID
-          schema: { type: integer }
-      responses:
-        '200':
-          description: The game, with its genres
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Game' }
-        '401':
-          description: Missing, malformed, or expired bearer token
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
-        '500':
-          description: Malformed id, or no such game
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
-
   /genres:
     get:
       operationId: getGenres
@@ -638,82 +565,6 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
 
-  /admin/games:
-    get:
-      operationId: getAdminGames
-      summary: List games (admin catalog)
-      description: >-
-        The same handler as GET /games. Inherits only AuthRequired — there is no
-        role check, so any authenticated user may call this and the mutating
-        operations below. Knowingly accepted while the admin panel is temporary
-        scaffolding.
-      tags: [Admin]
-      security:
-        - BearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/TitleQuery'
-        - $ref: '#/components/parameters/GenreIdsQuery'
-      responses:
-        '200':
-          description: Games ordered by title
-          content:
-            application/json:
-              schema:
-                type: array
-                items: { $ref: '#/components/schemas/Game' }
-        '401':
-          description: Missing, malformed, or expired bearer token
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
-        '500':
-          description: Query failed
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
-  /admin/games/{id}:
-    delete:
-      operationId: deleteGame
-      summary: Delete a game
-      description: >-
-        Hard delete. Cascades to games_genres via foreign key, but is refused
-        with 409 when any user has the game in their list.
-      tags: [Admin]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          description: Steam app ID
-          schema: { type: integer }
-      responses:
-        '200':
-          description: Deleted. The response body is the JSON literal null.
-          content:
-            application/json:
-              schema:
-                type: object
-                nullable: true
-        '401':
-          description: Missing, malformed, or expired bearer token
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
-        '409':
-          description: >-
-            The game is in at least one user's list. user_games.game_id is
-            ON DELETE RESTRICT so that deleting a catalog entry cannot destroy
-            everybody's ratings and reviews.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
-        '500':
-          description: Malformed id, or no such game
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
-
 components:
   securitySchemes:
     BearerAuth:
@@ -723,24 +574,6 @@ components:
       description: >-
         A 15-minute access token from /authenticate, /register or
         /refresh-token.
-
-  parameters:
-    TitleQuery:
-      name: title
-      in: query
-      required: false
-      description: Case-sensitive substring match on the game title.
-      schema: { type: string }
-
-    GenreIdsQuery:
-      name: genreIds
-      in: query
-      required: false
-      description: >-
-        Comma-separated genre ids, for example `1,4,12`. A string, not an
-        array — the handler splits on commas itself. Games matching any of the
-        ids are returned, and unparseable entries are skipped silently.
-      schema: { type: string }
 
   schemas:
     Tag:
@@ -898,19 +731,10 @@ components:
     AddUserGamesRequest:
       type: object
       description: >-
-        Exactly one of gameIds and igdbIds is required; sending both is a 400,
-        because there is no good answer to what should happen when they disagree
-        about the same game.
-      required: [category]
+        IGDB ids. Local catalog ids are no longer accepted: nothing browses the
+        catalog now that the picker searches IGDB.
+      required: [igdbIds, category]
       properties:
-        gameIds:
-          type: array
-          description: >-
-            Local catalog ids, as the current Add Game modal sends. Disappears
-            when that modal moves to IGDB search.
-          minItems: 1
-          maxItems: 50
-          items: { type: integer }
         igdbIds:
           type: array
           description: >-

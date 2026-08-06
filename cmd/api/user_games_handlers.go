@@ -70,11 +70,10 @@ func (app *application) PostMyGames(c *gin.Context) {
 	}
 
 	var requestPayload struct {
-		// Local catalog ids, as the current Add Game modal sends. Cycle 3
-		// replaces this with igdbIds and drops it.
-		GameIDs []int `json:"gameIds"`
-		// IGDB ids. Anything the catalog has not seen is imported first.
-		IGDBIDs  []int  `json:"igdbIds"`
+		// IGDB ids. Anything the catalog has not seen is imported first. Local
+		// catalog ids are no longer accepted: nothing browses the catalog now
+		// that the picker searches IGDB.
+		IGDBIDs  []int  `json:"igdbIds" binding:"required"`
 		Category string `json:"category" binding:"required"`
 	}
 
@@ -83,17 +82,11 @@ func (app *application) PostMyGames(c *gin.Context) {
 		return
 	}
 
-	if len(requestPayload.GameIDs) == 0 && len(requestPayload.IGDBIDs) == 0 {
+	if len(requestPayload.IGDBIDs) == 0 {
 		app.errorJSON(c, errors.New("no games given"), http.StatusBadRequest)
 		return
 	}
-	if len(requestPayload.GameIDs) > 0 && len(requestPayload.IGDBIDs) > 0 {
-		// Accepting both would mean deciding what to do when they disagree
-		// about the same game, which is a question with no good answer.
-		app.errorJSON(c, errors.New("send gameIds or igdbIds, not both"), http.StatusBadRequest)
-		return
-	}
-	if len(requestPayload.GameIDs) > maxGamesPerRequest || len(requestPayload.IGDBIDs) > maxGamesPerRequest {
+	if len(requestPayload.IGDBIDs) > maxGamesPerRequest {
 		app.errorJSON(c, fmt.Errorf("at most %d games per request", maxGamesPerRequest), http.StatusBadRequest)
 		return
 	}
@@ -104,28 +97,15 @@ func (app *application) PostMyGames(c *gin.Context) {
 		return
 	}
 
-	gameIDs := requestPayload.GameIDs
-
-	if len(requestPayload.IGDBIDs) > 0 {
-		// Fetches and stores anything the catalog has not seen, so the rest of
-		// this handler deals only in local ids.
-		resolved, err := app.importIGDBGames(c, requestPayload.IGDBIDs)
-		if err != nil {
-			return // importIGDBGames has already answered
-		}
-		gameIDs = resolved
-	}
-
-	// Checked up front so an unknown id is a clear 404 rather than a
-	// foreign-key violation surfacing as a 500.
-	exists, err := app.DB.GamesExist(c, gameIDs)
+	// Fetches and stores anything the catalog has not seen, so the rest of this
+	// handler deals only in local ids.
+	//
+	// No GamesExist check follows: every id here came from GamesByIGDBIDs or
+	// ImportGames, so asking the database to confirm what it just told us would
+	// buy nothing. An id IGDB does not know is already a 404 from here.
+	gameIDs, err := app.importIGDBGames(c, requestPayload.IGDBIDs)
 	if err != nil {
-		app.errorJSON(c, errors.New("Could not verify games"), http.StatusInternalServerError)
-		return
-	}
-	if !exists {
-		app.errorJSON(c, errors.New("Unknown game"), http.StatusNotFound)
-		return
+		return // importIGDBGames has already answered
 	}
 
 	entries, err := app.DB.AddUserGames(c, userID, gameIDs, category)

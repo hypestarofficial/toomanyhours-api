@@ -56,24 +56,13 @@ func (app *application) routes() *gin.Engine {
 		// Users
 		auth.GET("/users/:id", app.GetUserByID)
 
-		// Games
-		auth.GET("/games", app.GetGames) // query params: title, genreIds
-		// Static segment beside the :id wildcard. Verified to register in
-		// either order and to resolve ahead of /games/:id, so "search" is not
-		// swallowed as an id.
+		// Games. Search is the only catalog route left: browsing the local
+		// catalog existed to feed the picker and the admin page, and both are
+		// gone.
 		auth.GET("/games/search", app.SearchGames) // query params: q, limit
-		auth.GET("/games/:id", app.GetGameByGameId)
 
 		// Genres
 		auth.GET("/genres", app.GetGenres)
-	}
-
-	// Admin Routes
-	admin := auth.Group("/admin")
-	{
-		// Admin Games Catalog (games with genres)
-		admin.GET("/games", app.GetGames) // query params: title, genreIds
-		admin.DELETE("/games/:id", app.DeleteGameByGameId)
 	}
 
 	return router

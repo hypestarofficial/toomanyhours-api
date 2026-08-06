@@ -10,9 +10,6 @@ type DatabaseRepo interface {
 	Connection() *sql.DB
 
 	// Games
-	GetGames(ctx context.Context, title string, genreIDs []int, excludeUserID int) ([]*models.Game, error)
-	GetGameByGameId(ctx context.Context, id int) (*models.Game, error)
-	DeleteGameByGameId(ctx context.Context, id int) error
 
 	// Genres
 	GetGenres(ctx context.Context) ([]*models.Tag, error)
@@ -33,7 +30,6 @@ type DatabaseRepo interface {
 	GetUserGameCategory(ctx context.Context, userID, gameID int) (string, error)
 	UpdateUserGame(ctx context.Context, userID, gameID int, upd models.UserGameUpdate) (*models.UserGame, error)
 	DeleteUserGame(ctx context.Context, userID, gameID int) error
-	GamesExist(ctx context.Context, gameIDs []int) (bool, error)
 
 	// Refresh tokens
 	CreateRefreshToken(ctx context.Context, token *models.RefreshToken) error

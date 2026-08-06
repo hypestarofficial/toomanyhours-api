@@ -526,6 +526,58 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
 
+  /games/search:
+    get:
+      operationId: searchGames
+      summary: Search IGDB for games
+      description: >-
+        Free-text search against IGDB, sorted by relevance. Results are pure
+        IGDB and are not catalog rows: the key is igdbId, and a result may or
+        may not correspond to a local game. Cover art and release date are
+        absent for games that have neither.
+      tags: [Games]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, minLength: 2, maxLength: 100 }
+          description: Free-text title search.
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+          description: Values above 50 are capped rather than rejected.
+      responses:
+        '200':
+          description: Matching games, best match first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/IGDBGame' }
+        '400':
+          description: Missing or out-of-range q or limit
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          description: Missing or invalid token
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '502':
+          description: IGDB failed or was unreachable
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503':
+          description: This deployment has no IGDB credentials configured
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
   /games/{id}:
     get:
       operationId: getGameById
@@ -938,6 +990,47 @@ components:
         category:
           type: string
           enum: [finished, currently_playing, want_to_play]
+
+    IGDBTag:
+      type: object
+      description: A genre, theme or game mode, carrying IGDB's own id.
+      required: [igdbId, name]
+      properties:
+        igdbId:
+          type: integer
+          description: IGDB's identifier, stable across requests.
+        name:
+          type: string
+
+    IGDBGame:
+      type: object
+      description: >-
+        One IGDB search result. Not a catalog row - there may be no local game
+        behind it. The key is igdbId, never id, because both are integers in
+        overlapping ranges and a mix-up would half-work rather than fail.
+      required: [igdbId, title, genres, themes, gameModes]
+      properties:
+        igdbId:
+          type: integer
+        title:
+          type: string
+        image:
+          type: string
+          nullable: true
+          description: Cover URL, or null when IGDB has no cover for the game.
+        releaseDate:
+          type: string
+          nullable: true
+          description: YYYY-MM-DD, or null when no date is announced.
+        genres:
+          type: array
+          items: { $ref: '#/components/schemas/IGDBTag' }
+        themes:
+          type: array
+          items: { $ref: '#/components/schemas/IGDBTag' }
+        gameModes:
+          type: array
+          items: { $ref: '#/components/schemas/IGDBTag' }
 
     UpdateUserGameRequest:
       type: object

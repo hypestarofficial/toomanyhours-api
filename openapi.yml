@@ -327,8 +327,10 @@ paths:
       operationId: addMeGames
       summary: Add games to the list
       description: >-
-        Upserts on (user, game): adding a game already in the list moves it to
-        the new category and leaves its rating and review untouched.
+        Adds games to the list. A game already in the list is rejected with 409
+        rather than moved — use PATCH to change a game's category. The Add Game
+        picker asks for `/games?excludeMine=true`, so this is only reachable
+        from a stale client.
       tags: [UserGames]
       security:
         - BearerAuth: []
@@ -357,6 +359,14 @@ paths:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
         '404':
           description: One or more game ids are not in the catalog
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: >-
+            At least one game is already in the list. All or nothing — none of
+            the games in the request were added. Moving a game between
+            categories is PATCH, not a repeat POST.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -483,6 +493,14 @@ paths:
       parameters:
         - $ref: '#/components/parameters/TitleQuery'
         - $ref: '#/components/parameters/GenreIdsQuery'
+        - name: excludeMine
+          in: query
+          required: false
+          description: >-
+            When `true`, omits games already in the caller's list. Opt-in: this
+            endpoint otherwise describes the whole catalog. The user is taken
+            from the bearer token, not from the request.
+          schema: { type: boolean }
       responses:
         '200':
           description: Games ordered by title

@@ -106,8 +106,15 @@ func (app *application) PostMyGames(c *gin.Context) {
 		return
 	}
 
-	entries, err := app.DB.UpsertUserGames(c, userID, requestPayload.GameIDs, category)
+	entries, err := app.DB.AddUserGames(c, userID, requestPayload.GameIDs, category)
 	if err != nil {
+		// Adding a game already in the list. Generic on purpose: naming which
+		// one would need a second query on a path the picker makes rare, since
+		// it no longer offers games you already have.
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			app.errorJSON(c, errors.New("One or more of those games is already in your list"), http.StatusConflict)
+			return
+		}
 		app.errorJSON(c, errors.New("Could not add to your list"), http.StatusInternalServerError)
 		return
 	}

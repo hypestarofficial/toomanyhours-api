@@ -6,7 +6,6 @@ import (
 	"toomanyhours-api/internal/models"
 
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 // scopedToUser is the guard every method here goes through. Taking userID as a
@@ -59,12 +58,20 @@ func (m *PostgresDBRepo) GamesExist(ctx context.Context, gameIDs []int) (bool, e
 	return found == int64(len(gameIDs)), nil
 }
 
-// UpsertUserGames adds games to a user's list, or moves them if already there.
+// AddUserGames adds games to a user's list.
 //
-// The conflict clause updates the category and nothing else. Rating and review
-// are deliberately absent: re-adding a game you already rated must not wipe the
-// rating, which is the same promise the drag makes.
-func (m *PostgresDBRepo) UpsertUserGames(ctx context.Context, userID int, gameIDs []int, category string) ([]*models.UserGame, error) {
+// No ON CONFLICT clause: a game already in the list violates
+// user_games_user_id_game_id_key, which GORM surfaces as gorm.ErrDuplicatedKey
+// because the connection is opened with TranslateError. The caller turns that
+// into a 409.
+//
+// The constraint is the authority rather than a pre-flight existence check:
+// looking first and inserting second leaves a window where another tab inserts
+// in between, and the constraint has no such window.
+//
+// One multi-row INSERT in one transaction, so a single duplicate rejects the
+// whole request. That is the contract, not an accident.
+func (m *PostgresDBRepo) AddUserGames(ctx context.Context, userID int, gameIDs []int, category string) ([]*models.UserGame, error) {
 	rows := make([]*models.UserGame, 0, len(gameIDs))
 	for _, gameID := range gameIDs {
 		rows = append(rows, &models.UserGame{
@@ -74,17 +81,7 @@ func (m *PostgresDBRepo) UpsertUserGames(ctx context.Context, userID int, gameID
 		})
 	}
 
-	err := m.GormDB.WithContext(ctx).
-		Clauses(clause.OnConflict{
-			Columns: []clause.Column{{Name: "user_id"}, {Name: "game_id"}},
-			DoUpdates: clause.Assignments(map[string]any{
-				"category":   category,
-				"updated_at": time.Now(),
-			}),
-		}).
-		Create(&rows).Error
-
-	if err != nil {
+	if err := m.GormDB.WithContext(ctx).Create(&rows).Error; err != nil {
 		return nil, err
 	}
 

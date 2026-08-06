@@ -10,7 +10,7 @@ type DatabaseRepo interface {
 	Connection() *sql.DB
 
 	// Games
-	GetGames(ctx context.Context, title string, genreIDs []int) ([]*models.Game, error)
+	GetGames(ctx context.Context, title string, genreIDs []int, excludeUserID int) ([]*models.Game, error)
 	GetGameByGameId(ctx context.Context, id int) (*models.Game, error)
 	PostGameToGames(ctx context.Context, game models.Game) (int, error)
 	PutGameByGameId(ctx context.Context, game models.Game) error
@@ -30,7 +30,7 @@ type DatabaseRepo interface {
 
 	// User Games (the list)
 	GetUserGames(ctx context.Context, userID int) ([]*models.UserGame, error)
-	UpsertUserGames(ctx context.Context, userID int, gameIDs []int, category string) ([]*models.UserGame, error)
+	AddUserGames(ctx context.Context, userID int, gameIDs []int, category string) ([]*models.UserGame, error)
 	UpdateUserGame(ctx context.Context, userID, gameID int, upd models.UserGameUpdate) (*models.UserGame, error)
 	DeleteUserGame(ctx context.Context, userID, gameID int) error
 	GamesExist(ctx context.Context, gameIDs []int) (bool, error)

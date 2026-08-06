@@ -25,7 +25,12 @@ func (m *PostgresDBRepo) Connection() *sql.DB {
 	return db
 }
 
-func (m *PostgresDBRepo) GetGames(ctx context.Context, title string, genreIDs []int) ([]*models.Game, error) {
+// GetGames returns catalog games, optionally filtered by title and genres.
+//
+// A non-zero excludeUserID subtracts the games already in that user's list.
+// Opt-in rather than always-on: this endpoint describes the catalog, and a
+// caller asking what games exist should not silently get a personalised subset.
+func (m *PostgresDBRepo) GetGames(ctx context.Context, title string, genreIDs []int, excludeUserID int) ([]*models.Game, error) {
 	var games []*models.Game
 
 	query := m.GormDB.WithContext(ctx).Model(&models.Game{})
@@ -33,10 +38,16 @@ func (m *PostgresDBRepo) GetGames(ctx context.Context, title string, genreIDs []
 	if title != "" {
 		query = query.Where("title LIKE ?", "%"+title+"%")
 	}
-	
+
 	if len(genreIDs) > 0 {
 		subQuery := m.GormDB.Select("game_id").Table("games_genres").Where("genre_id IN (?)", genreIDs)
 		query = query.Where("id IN (?)", subQuery)
+	}
+
+	if excludeUserID > 0 {
+		// user_games.game_id is NOT NULL, so NOT IN has no null-semantics trap.
+		owned := m.GormDB.Select("game_id").Table("user_games").Where("user_id = ?", excludeUserID)
+		query = query.Where("id NOT IN (?)", owned)
 	}
 
 	result := query.Preload("Genres").

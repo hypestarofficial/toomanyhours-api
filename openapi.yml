@@ -35,6 +35,8 @@ tags:
     description: Registration, login, token refresh, logout
   - name: Users
     description: The authenticated user and user lookup
+  - name: UserGames
+    description: The authenticated user's list
   - name: Games
     description: Read-only game catalog
   - name: Genres
@@ -266,6 +268,150 @@ paths:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
         '500':
           description: Update failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /me/games:
+    get:
+      operationId: getMeGames
+      summary: The signed-in user's list
+      description: >-
+        Every entry with its game embedded, newest first. Always an array —
+        an empty list is [], never null.
+      tags: [UserGames]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: The list
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/UserGame' }
+        '401':
+          description: Missing or invalid token
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          description: Query failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+    post:
+      operationId: addMeGames
+      summary: Add games to the list
+      description: >-
+        Upserts on (user, game): adding a game already in the list moves it to
+        the new category and leaves its rating and review untouched.
+      tags: [UserGames]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AddUserGamesRequest' }
+      responses:
+        '201':
+          description: The created or updated entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/UserGame' }
+        '400':
+          description: Empty array, more than 50 ids, or an invalid category
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          description: Missing or invalid token
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: One or more game ids are not in the catalog
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          description: Write failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /me/games/{gameId}:
+    parameters:
+      - name: gameId
+        in: path
+        required: true
+        schema: { type: integer }
+    patch:
+      operationId: updateMeGame
+      summary: Update an entry's category, rating or review
+      description: >-
+        Moving a game between categories is a category-only PATCH. Rating and
+        review are not touched unless named.
+      tags: [UserGames]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateUserGameRequest' }
+      responses:
+        '200':
+          description: The updated entry
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserGame' }
+        '400':
+          description: Nothing to update, or a value out of range
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          description: Missing or invalid token
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: >-
+            Not in this user's list. Returned even when the entry exists under
+            another user, so the response does not confirm that.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          description: Update failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+    delete:
+      operationId: removeMeGame
+      summary: Remove an entry from the list
+      tags: [UserGames]
+      security:
+        - BearerAuth: []
+      responses:
+        '204':
+          description: Removed
+        '401':
+          description: Missing or invalid token
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Not in this user's list
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          description: Delete failed
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -514,7 +660,9 @@ paths:
     delete:
       operationId: deleteGame
       summary: Delete a game
-      description: Hard delete. Cascades to games_genres via foreign key.
+      description: >-
+        Hard delete. Cascades to games_genres via foreign key, but is refused
+        with 409 when any user has the game in their list.
       tags: [Admin]
       security:
         - BearerAuth: []
@@ -534,6 +682,14 @@ paths:
                 nullable: true
         '401':
           description: Missing, malformed, or expired bearer token
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: >-
+            The game is in at least one user's list. user_games.game_id is
+            ON DELETE RESTRICT so that deleting a catalog entry cannot destroy
+            everybody's ratings and reviews.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -688,6 +844,70 @@ components:
       properties:
         username: { type: string, minLength: 3, maxLength: 16 }
         visibility: { type: string, enum: [public, private] }
+
+    UserGame:
+      type: object
+      description: >-
+        One entry in a user's list. There is one row per (user, game), so
+        category is a property of the entry rather than a separate list —
+        which is why moving a game preserves its rating and review.
+      required: [id, gameId, category, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        gameId: { type: integer }
+        category:
+          type: string
+          enum: [finished, currently_playing, want_to_play]
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 10
+          nullable: true
+          description: 1-10, or null when unrated.
+        review:
+          type: string
+          nullable: true
+          description: Plain text, at most 2000 characters.
+        hours:
+          type: integer
+          nullable: true
+          description: Self-reported and optional. Nothing writes this yet.
+        game: { $ref: '#/components/schemas/Game' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    AddUserGamesRequest:
+      type: object
+      required: [gameIds, category]
+      properties:
+        gameIds:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items: { type: integer }
+        category:
+          type: string
+          enum: [finished, currently_playing, want_to_play]
+
+    UpdateUserGameRequest:
+      type: object
+      description: >-
+        Every property is optional; omitting one leaves it unchanged. Clearing
+        uses a sentinel the valid range excludes — rating 0 and review "" —
+        because an absent key and an explicit null are indistinguishable to the
+        server's JSON decoder.
+      properties:
+        category:
+          type: string
+          enum: [finished, currently_playing, want_to_play]
+        rating:
+          type: integer
+          minimum: 0
+          maximum: 10
+          description: 1-10 to set, 0 to clear.
+        review:
+          type: string
+          description: Text to set, empty string to clear.
 
     ErrorResponse:
       type: object

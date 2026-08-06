@@ -554,6 +554,21 @@ func (app *application) DeleteGameByGameId(c *gin.Context) {
 
 	err = app.DB.DeleteGameByGameId(c, gameId)
 	if err != nil {
+		// user_games.game_id is ON DELETE RESTRICT, so Postgres refuses to
+		// delete a game somebody has listed. That is deliberate — it stops one
+		// admin click destroying everyone's ratings and reviews — and the
+		// caller deserves a 409 saying so rather than a 500 that reads as a
+		// crash.
+		//
+		// Matched by sentinel, not by constraint name: TranslateError replaces
+		// the driver error with gorm.ErrForeignKeyViolated, so the name is
+		// already gone by the time it arrives here. user_games is the only
+		// RESTRICT reference to games — games_genres cascades — so this is
+		// unambiguous.
+		if errors.Is(err, gorm.ErrForeignKeyViolated) {
+			app.errorJSON(c, errors.New("Game is in someone's list"), http.StatusConflict)
+			return
+		}
 		app.errorJSON(c, err, http.StatusInternalServerError)
 		return
 	}

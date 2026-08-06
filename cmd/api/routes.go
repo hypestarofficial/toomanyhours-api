@@ -47,6 +47,12 @@ func (app *application) routes() *gin.Engine {
 		auth.GET("/me", app.MeHandler)
 		auth.PATCH("/me", app.PatchMe)
 
+		// My list
+		auth.GET("/me/games", app.GetMyGames)
+		auth.POST("/me/games", app.PostMyGames)
+		auth.PATCH("/me/games/:gameId", app.PatchMyGame)
+		auth.DELETE("/me/games/:gameId", app.DeleteMyGame)
+
 		// Users
 		auth.GET("/users/:id", app.GetUserByID)
 		

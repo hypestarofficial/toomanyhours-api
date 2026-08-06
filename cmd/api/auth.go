@@ -37,7 +37,17 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-func (j *Auth) GenerateTokenPair(user *jwtUser) (TokenPairs, error) {
+// GenerateTokenPair signs an access token and a refresh token.
+//
+// refreshJTI must be the id of a row already written to refresh_tokens: the
+// refresh token carries nothing else, so a token signed without its row would
+// be permanently unusable.
+//
+// The access token is deliberately issued without an ID. /refresh-token
+// requires one, so that asymmetry is what stops an access token — which
+// travels in a header and is far more exposed — being presented as the
+// refresh cookie.
+func (j *Auth) GenerateTokenPair(user *jwtUser, refreshJTI string) (TokenPairs, error) {
 	accessTokenClaims := Claims{
 		UserID: user.ID,
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -60,6 +70,9 @@ func (j *Auth) GenerateTokenPair(user *jwtUser) (TokenPairs, error) {
 
 	// Create claims for the refresh token (using standard claims)
 	refreshTokenClaims := jwt.RegisteredClaims{
+		ID: refreshJTI,
+		// Kept for debugging only. The server reads the user from the row, not
+		// from here — one source of truth, and the row is the revocable one.
 		Subject:   fmt.Sprintf("%d", user.ID),
 		IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
 		ExpiresAt: jwt.NewNumericDate(time.Now().UTC().Add(j.RefreshTokenExpiry)),

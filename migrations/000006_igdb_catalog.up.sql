@@ -66,6 +66,93 @@ DELETE FROM public.games WHERE igdb_id IS NULL;
 ALTER TABLE public.games ALTER COLUMN igdb_id SET NOT NULL;
 ALTER TABLE public.games ADD CONSTRAINT games_igdb_id_key UNIQUE (igdb_id);
 
+-- The seven games' real IGDB data: titles, covers, dates and tags.
+--
+-- SQL cannot call IGDB, so this was generated once against the live API and
+-- hardcoded, like the ids above. Without it the remapped games would carry
+-- their old Steam titles and covers and no genres at all - a visible
+-- regression, since the seeded data at least had genres.
+
+UPDATE public.games SET title = 'Counter-Strike 2', image = 'https://images.igdb.com/igdb/image/upload/t_cover_big/coaczd.jpg', release_date = '2023-09-27' WHERE id = 730;
+UPDATE public.games SET title = 'The Witcher 3: Wild Hunt', image = 'https://images.igdb.com/igdb/image/upload/t_cover_big/coaarl.jpg', release_date = '2015-05-19' WHERE id = 292030;
+UPDATE public.games SET title = 'Fallout 4', image = 'https://images.igdb.com/igdb/image/upload/t_cover_big/co1yc6.jpg', release_date = '2015-11-09' WHERE id = 377160;
+UPDATE public.games SET title = 'The Elder Scrolls V: Skyrim - Special Edition', image = 'https://images.igdb.com/igdb/image/upload/t_cover_big/co1vco.jpg', release_date = '2016-10-27' WHERE id = 489830;
+UPDATE public.games SET title = 'Red Dead Redemption 2', image = 'https://images.igdb.com/igdb/image/upload/t_cover_big/co1q1f.jpg', release_date = '2018-10-26' WHERE id = 1174180;
+UPDATE public.games SET title = 'The Séance of Blake Manor', image = 'https://images.igdb.com/igdb/image/upload/t_cover_big/co9jkt.jpg', release_date = '2025-10-27' WHERE id = 1395520;
+UPDATE public.games SET title = 'Grand Theft Auto V Enhanced', image = 'https://images.igdb.com/igdb/image/upload/t_cover_big/co9hz1.jpg', release_date = '2025-03-04' WHERE id = 3240220;
+
+INSERT INTO public.tags (facet, igdb_id, name) VALUES ('game_mode', 1, 'Single player');
+INSERT INTO public.tags (facet, igdb_id, name) VALUES ('game_mode', 2, 'Multiplayer');
+INSERT INTO public.tags (facet, igdb_id, name) VALUES ('game_mode', 3, 'Co-operative');
+INSERT INTO public.tags (facet, igdb_id, name) VALUES ('genre', 5, 'Shooter');
+INSERT INTO public.tags (facet, igdb_id, name) VALUES ('genre', 9, 'Puzzle');
+INSERT INTO public.tags (facet, igdb_id, name) VALUES ('genre', 10, 'Racing');
+INSERT INTO public.tags (facet, igdb_id, name) VALUES ('genre', 12, 'Role-playing (RPG)');
+INSERT INTO public.tags (facet, igdb_id, name) VALUES ('genre', 24, 'Tactical');
+INSERT INTO public.tags (facet, igdb_id, name) VALUES ('genre', 31, 'Adventure');
+INSERT INTO public.tags (facet, igdb_id, name) VALUES ('theme', 1, 'Action');
+INSERT INTO public.tags (facet, igdb_id, name) VALUES ('theme', 17, 'Fantasy');
+INSERT INTO public.tags (facet, igdb_id, name) VALUES ('theme', 18, 'Science fiction');
+INSERT INTO public.tags (facet, igdb_id, name) VALUES ('theme', 21, 'Survival');
+INSERT INTO public.tags (facet, igdb_id, name) VALUES ('theme', 22, 'Historical');
+INSERT INTO public.tags (facet, igdb_id, name) VALUES ('theme', 23, 'Stealth');
+INSERT INTO public.tags (facet, igdb_id, name) VALUES ('theme', 31, 'Drama');
+INSERT INTO public.tags (facet, igdb_id, name) VALUES ('theme', 33, 'Sandbox');
+INSERT INTO public.tags (facet, igdb_id, name) VALUES ('theme', 38, 'Open world');
+INSERT INTO public.tags (facet, igdb_id, name) VALUES ('theme', 39, 'Warfare');
+INSERT INTO public.tags (facet, igdb_id, name) VALUES ('theme', 43, 'Mystery');
+
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 730, id FROM public.tags WHERE facet = 'genre' AND igdb_id = 5;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 730, id FROM public.tags WHERE facet = 'genre' AND igdb_id = 24;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 730, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 1;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 730, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 39;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 730, id FROM public.tags WHERE facet = 'game_mode' AND igdb_id = 1;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 730, id FROM public.tags WHERE facet = 'game_mode' AND igdb_id = 2;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 292030, id FROM public.tags WHERE facet = 'genre' AND igdb_id = 12;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 292030, id FROM public.tags WHERE facet = 'genre' AND igdb_id = 31;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 292030, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 1;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 292030, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 17;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 292030, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 38;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 292030, id FROM public.tags WHERE facet = 'game_mode' AND igdb_id = 1;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 377160, id FROM public.tags WHERE facet = 'genre' AND igdb_id = 5;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 377160, id FROM public.tags WHERE facet = 'genre' AND igdb_id = 12;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 377160, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 1;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 377160, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 18;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 377160, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 21;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 377160, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 23;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 377160, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 33;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 377160, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 38;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 377160, id FROM public.tags WHERE facet = 'game_mode' AND igdb_id = 1;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 489830, id FROM public.tags WHERE facet = 'genre' AND igdb_id = 12;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 489830, id FROM public.tags WHERE facet = 'genre' AND igdb_id = 31;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 489830, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 1;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 489830, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 17;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 489830, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 22;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 489830, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 33;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 489830, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 38;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 489830, id FROM public.tags WHERE facet = 'game_mode' AND igdb_id = 1;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 1174180, id FROM public.tags WHERE facet = 'genre' AND igdb_id = 5;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 1174180, id FROM public.tags WHERE facet = 'genre' AND igdb_id = 12;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 1174180, id FROM public.tags WHERE facet = 'genre' AND igdb_id = 31;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 1174180, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 1;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 1174180, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 31;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 1174180, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 38;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 1174180, id FROM public.tags WHERE facet = 'game_mode' AND igdb_id = 1;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 1174180, id FROM public.tags WHERE facet = 'game_mode' AND igdb_id = 2;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 1174180, id FROM public.tags WHERE facet = 'game_mode' AND igdb_id = 3;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 1395520, id FROM public.tags WHERE facet = 'genre' AND igdb_id = 9;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 1395520, id FROM public.tags WHERE facet = 'genre' AND igdb_id = 31;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 1395520, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 43;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 1395520, id FROM public.tags WHERE facet = 'game_mode' AND igdb_id = 1;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 3240220, id FROM public.tags WHERE facet = 'genre' AND igdb_id = 5;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 3240220, id FROM public.tags WHERE facet = 'genre' AND igdb_id = 10;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 3240220, id FROM public.tags WHERE facet = 'genre' AND igdb_id = 31;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 3240220, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 1;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 3240220, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 38;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 3240220, id FROM public.tags WHERE facet = 'game_mode' AND igdb_id = 1;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 3240220, id FROM public.tags WHERE facet = 'game_mode' AND igdb_id = 2;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT 3240220, id FROM public.tags WHERE facet = 'game_mode' AND igdb_id = 3;
+
 -- Superseded by tags. Their 15 seeded rows were test data.
 DROP TABLE public.games_genres;
 DROP TABLE public.genres;

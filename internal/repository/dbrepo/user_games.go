@@ -28,15 +28,24 @@ func (m *PostgresDBRepo) GetUserGames(ctx context.Context, userID int) ([]*model
 	result := m.scopedToUser(ctx, userID).
 		Preload("Game").
 		// The nested preload is required, not belt-and-braces: GameCard renders
-		// genre badges, and one level of Preload leaves Genres empty, which
-		// looks like a styling bug rather than a query bug.
-		Preload("Game.Genres").
+		// genre badges, and one level of Preload leaves Tags empty, which looks
+		// like a styling bug rather than a query bug.
+		Preload("Game.Tags").
 		Order("created_at DESC").
 		Find(&entries)
 
 	if result.Error != nil {
 		return nil, result.Error
 	}
+
+	// Tags are stored in one table; the three transport fields only exist once
+	// this runs. Skipping it is the same silent failure as skipping the preload.
+	for _, e := range entries {
+		if e.Game != nil {
+			e.Game.SplitTags()
+		}
+	}
+
 	return entries, nil
 }
 
@@ -92,13 +101,20 @@ func (m *PostgresDBRepo) AddUserGames(ctx context.Context, userID int, gameIDs [
 	result := m.scopedToUser(ctx, userID).
 		Where("game_id IN ?", gameIDs).
 		Preload("Game").
-		Preload("Game.Genres").
+		Preload("Game.Tags").
 		Order("created_at DESC").
 		Find(&entries)
 
 	if result.Error != nil {
 		return nil, result.Error
 	}
+
+	for _, e := range entries {
+		if e.Game != nil {
+			e.Game.SplitTags()
+		}
+	}
+
 	return entries, nil
 }
 
@@ -162,12 +178,17 @@ func (m *PostgresDBRepo) UpdateUserGame(ctx context.Context, userID, gameID int,
 	err := m.scopedToUser(ctx, userID).
 		Where("game_id = ?", gameID).
 		Preload("Game").
-		Preload("Game.Genres").
+		Preload("Game.Tags").
 		First(&entry).Error
 
 	if err != nil {
 		return nil, err
 	}
+
+	if entry.Game != nil {
+		entry.Game.SplitTags()
+	}
+
 	return &entry, nil
 }
 

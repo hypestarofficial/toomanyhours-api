@@ -70,7 +70,11 @@ func (app *application) PostMyGames(c *gin.Context) {
 	}
 
 	var requestPayload struct {
-		GameIDs  []int  `json:"gameIds" binding:"required"`
+		// Local catalog ids, as the current Add Game modal sends. Cycle 3
+		// replaces this with igdbIds and drops it.
+		GameIDs []int `json:"gameIds"`
+		// IGDB ids. Anything the catalog has not seen is imported first.
+		IGDBIDs  []int  `json:"igdbIds"`
 		Category string `json:"category" binding:"required"`
 	}
 
@@ -79,11 +83,17 @@ func (app *application) PostMyGames(c *gin.Context) {
 		return
 	}
 
-	if len(requestPayload.GameIDs) == 0 {
+	if len(requestPayload.GameIDs) == 0 && len(requestPayload.IGDBIDs) == 0 {
 		app.errorJSON(c, errors.New("no games given"), http.StatusBadRequest)
 		return
 	}
-	if len(requestPayload.GameIDs) > maxGamesPerRequest {
+	if len(requestPayload.GameIDs) > 0 && len(requestPayload.IGDBIDs) > 0 {
+		// Accepting both would mean deciding what to do when they disagree
+		// about the same game, which is a question with no good answer.
+		app.errorJSON(c, errors.New("send gameIds or igdbIds, not both"), http.StatusBadRequest)
+		return
+	}
+	if len(requestPayload.GameIDs) > maxGamesPerRequest || len(requestPayload.IGDBIDs) > maxGamesPerRequest {
 		app.errorJSON(c, fmt.Errorf("at most %d games per request", maxGamesPerRequest), http.StatusBadRequest)
 		return
 	}
@@ -94,9 +104,21 @@ func (app *application) PostMyGames(c *gin.Context) {
 		return
 	}
 
+	gameIDs := requestPayload.GameIDs
+
+	if len(requestPayload.IGDBIDs) > 0 {
+		// Fetches and stores anything the catalog has not seen, so the rest of
+		// this handler deals only in local ids.
+		resolved, err := app.importIGDBGames(c, requestPayload.IGDBIDs)
+		if err != nil {
+			return // importIGDBGames has already answered
+		}
+		gameIDs = resolved
+	}
+
 	// Checked up front so an unknown id is a clear 404 rather than a
 	// foreign-key violation surfacing as a 500.
-	exists, err := app.DB.GamesExist(c, requestPayload.GameIDs)
+	exists, err := app.DB.GamesExist(c, gameIDs)
 	if err != nil {
 		app.errorJSON(c, errors.New("Could not verify games"), http.StatusInternalServerError)
 		return
@@ -106,7 +128,7 @@ func (app *application) PostMyGames(c *gin.Context) {
 		return
 	}
 
-	entries, err := app.DB.AddUserGames(c, userID, requestPayload.GameIDs, category)
+	entries, err := app.DB.AddUserGames(c, userID, gameIDs, category)
 	if err != nil {
 		// Adding a game already in the list. Generic on purpose: naming which
 		// one would need a second query on a path the picker makes rare, since

@@ -47,7 +47,7 @@ func splitAndTrim(s string, delimiter string) []string {
 
 func (app *application) Home(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
-		"status": "active",
+		"status":  "active",
 		"message": "tooManyHours API is running",
 		"version": os.Getenv("VERSION"),
 	})
@@ -59,7 +59,7 @@ func (app *application) MeHandler(c *gin.Context) {
 		app.errorJSON(c, errors.New("User context missing"), http.StatusInternalServerError)
 		return
 	}
-	
+
 	userID, ok := val.(int)
 	if !ok {
 		app.errorJSON(c, errors.New("Invalid user ID type"), http.StatusInternalServerError)
@@ -81,7 +81,7 @@ func (app *application) MeHandler(c *gin.Context) {
 		UpdatedAt:  user.UpdatedAt,
 	}
 
-	c.JSON(http.StatusOK, apiUser) 
+	c.JSON(http.StatusOK, apiUser)
 }
 
 func (app *application) PatchMe(c *gin.Context) {
@@ -186,8 +186,8 @@ func (app *application) GetGames(c *gin.Context) {
 
 	games, err := app.DB.GetGames(c, title, genreIDs, excludeUserID)
 	if err != nil {
-			app.errorJSON(c, err, http.StatusInternalServerError)
-			return
+		app.errorJSON(c, err, http.StatusInternalServerError)
+		return
 	}
 
 	c.JSON(http.StatusOK, games)
@@ -214,8 +214,8 @@ func (app *application) GetGameByGameId(c *gin.Context) {
 func (app *application) GetGenres(c *gin.Context) {
 	genres, err := app.DB.GetGenres(c)
 	if err != nil {
-			app.errorJSON(c, err, http.StatusInternalServerError)
-			return
+		app.errorJSON(c, err, http.StatusInternalServerError)
+		return
 	}
 
 	c.JSON(http.StatusOK, genres)
@@ -319,7 +319,7 @@ func (app *application) recordLoginFailure(ipKey, emailKey string) {
 
 func (app *application) Authenticate(c *gin.Context) {
 	var requestPayload struct {
-		Email string `json:"email" binding:"required,email"`
+		Email    string `json:"email" binding:"required,email"`
 		Password string `json:"password" binding:"required"`
 	}
 
@@ -495,7 +495,6 @@ func (app *application) RefreshToken(c *gin.Context) {
 	c.JSON(http.StatusOK, tokenPairs)
 }
 
-
 func (app *application) GetUserByID(c *gin.Context) {
 	id := c.Param("id")
 
@@ -557,86 +556,6 @@ func (app *application) Logout(c *gin.Context) {
 
 	http.SetCookie(c.Writer, app.auth.GetExpiredRefreshCookie(""))
 	c.JSON(http.StatusOK, gin.H{"message": "Logged out"})
-}
-
-func (app *application) PostGameToGames(c *gin.Context) {
-	var game models.Game
-
-	if err := c.ShouldBindJSON(&game); err != nil {
-		app.errorJSON(c, err, http.StatusBadRequest)
-		return
-	}
-
-	game.CreatedAt = time.Now()
-	game.UpdatedAt = time.Now()
-
-	newID, err := app.DB.PostGameToGames(c, game)
-	if err != nil {
-		app.errorJSON(c, err, http.StatusInternalServerError)
-		return
-	}
-
-	err = app.DB.PostGameGenres(c, newID, game.GenreIDs)
-	if err != nil {
-		app.errorJSON(c, err, http.StatusInternalServerError)
-		return
-	}
-
-	savedGame, err := app.DB.GetGameByGameId(c,newID)
-	if err != nil {
-		app.errorJSON(c, err, http.StatusInternalServerError)
-		return
-	}
-
-	c.JSON(http.StatusCreated, savedGame)
-}
-
-func (app *application) PutGameByGameId(c *gin.Context) {
-	id := c.Param("id")
-
-	gameId, err := strconv.Atoi(id)
-	if err != nil {
-		app.errorJSON(c, err, http.StatusBadRequest)
-		return
-	}
-	
-	var incomingGame models.Game
-	if err := c.ShouldBindJSON(&incomingGame); err != nil {
-		app.errorJSON(c, err, http.StatusBadRequest)
-		return
-	}
-
-	existingGame, err := app.DB.GetGameByGameId(c, gameId)
-	if err != nil {
-		app.errorJSON(c, err, http.StatusNotFound)
-		return
-	}
-
-	existingGame.Title = incomingGame.Title
-	existingGame.ReleaseDate = incomingGame.ReleaseDate
-	existingGame.Image = incomingGame.Image
-	existingGame.UpdatedAt = time.Now()
-
-	err = app.DB.PutGameByGameId(c, *existingGame)
-	if err != nil {
-		app.errorJSON(c, err, http.StatusInternalServerError)
-		return
-	}
-
-	err = app.DB.PostGameGenres(c, existingGame.ID, incomingGame.GenreIDs)
-	if err != nil {
-		app.errorJSON(c, err, http.StatusInternalServerError)
-		return
-	}
-
-	// Re-fetch the game to get updated genres
-	updatedGame, err := app.DB.GetGameByGameId(c, gameId)
-	if err != nil {
-		app.errorJSON(c, err, http.StatusInternalServerError)
-		return
-	}
-
-	c.JSON(http.StatusOK, updatedGame)
 }
 
 func (app *application) DeleteGameByGameId(c *gin.Context) {

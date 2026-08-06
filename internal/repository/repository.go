@@ -12,12 +12,12 @@ type DatabaseRepo interface {
 	// Games
 	GetGames(ctx context.Context, title string, genreIDs []int, excludeUserID int) ([]*models.Game, error)
 	GetGameByGameId(ctx context.Context, id int) (*models.Game, error)
-	PostGameToGames(ctx context.Context, game models.Game) (int, error)
-	PutGameByGameId(ctx context.Context, game models.Game) error
 	DeleteGameByGameId(ctx context.Context, id int) error
 
 	// Genres
-	GetGenres(ctx context.Context) ([]*models.Genre, error)
+	GetGenres(ctx context.Context) ([]*models.Tag, error)
+	GamesByIGDBIDs(ctx context.Context, igdbIDs []int) (map[int]int, error)
+	ImportGames(ctx context.Context, games []*models.Game) (map[int]int, error)
 
 	// Users
 	GetUserByEmail(ctx context.Context, email string) (*models.User, error)
@@ -26,7 +26,6 @@ type DatabaseRepo interface {
 	UpdateUser(ctx context.Context, user *models.User) error
 
 	// Games Genres
-	PostGameGenres(ctx context.Context, id int, genreIDs []int) error
 
 	// User Games (the list)
 	GetUserGames(ctx context.Context, userID int) ([]*models.UserGame, error)

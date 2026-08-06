@@ -12,23 +12,23 @@ import (
 )
 
 type Auth struct {
-	Issuer string
-	Audience string
-	Secret string
-	TokenExpiry time.Duration
+	Issuer             string
+	Audience           string
+	Secret             string
+	TokenExpiry        time.Duration
 	RefreshTokenExpiry time.Duration
-	CookieDomain string
-	CookiePath string
-	CookieName string
+	CookieDomain       string
+	CookiePath         string
+	CookieName         string
 }
 
 type jwtUser struct {
-	ID int `json:"id"`
+	ID       int    `json:"id"`
 	Username string `json:"username"`
 }
 
 type TokenPairs struct {
-	Token string `json:"access_token"`
+	Token        string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 }
 
@@ -52,7 +52,7 @@ func (j *Auth) GenerateTokenPair(user *jwtUser, refreshJTI string) (TokenPairs, 
 		UserID: user.ID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   fmt.Sprintf("%d", user.ID),
-			Audience:  []string{j.Audience}, 
+			Audience:  []string{j.Audience},
 			Issuer:    j.Issuer,
 			IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
 			ExpiresAt: jwt.NewNumericDate(time.Now().UTC().Add(j.TokenExpiry)),
@@ -61,12 +61,12 @@ func (j *Auth) GenerateTokenPair(user *jwtUser, refreshJTI string) (TokenPairs, 
 
 	// Create a token with those claims
 	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, accessTokenClaims)
-	
+
 	// Create a signed access token
 	signedAccessToken, err := accessToken.SignedString([]byte(j.Secret))
 	if err != nil {
 		return TokenPairs{}, err
-	} 
+	}
 
 	// Create claims for the refresh token (using standard claims)
 	refreshTokenClaims := jwt.RegisteredClaims{
@@ -99,29 +99,29 @@ func (j *Auth) GenerateTokenPair(user *jwtUser, refreshJTI string) (TokenPairs, 
 
 func (j *Auth) GetRefreshCookie(refreshToken string) *http.Cookie {
 	return &http.Cookie{
-		Name: j.CookieName,
-		Path: "/",
-		Value: refreshToken,
-		Expires: time.Now().Add(j.RefreshTokenExpiry),
-		MaxAge: int(j.RefreshTokenExpiry.Seconds()),
+		Name:     j.CookieName,
+		Path:     "/",
+		Value:    refreshToken,
+		Expires:  time.Now().Add(j.RefreshTokenExpiry),
+		MaxAge:   int(j.RefreshTokenExpiry.Seconds()),
 		SameSite: http.SameSiteStrictMode,
-		Domain: "",
+		Domain:   "",
 		HttpOnly: true,
-		Secure: true,
+		Secure:   true,
 	}
 }
 
 func (j *Auth) GetExpiredRefreshCookie(refreshToken string) *http.Cookie {
 	return &http.Cookie{
-		Name: j.CookieName,
-		Path: "/",
-		Value: "",
-		Expires: time.Unix(0, 0),
-		MaxAge: -1,
+		Name:     j.CookieName,
+		Path:     "/",
+		Value:    "",
+		Expires:  time.Unix(0, 0),
+		MaxAge:   -1,
 		SameSite: http.SameSiteStrictMode,
-		Domain: "",
+		Domain:   "",
 		HttpOnly: true,
-		Secure: true,
+		Secure:   true,
 	}
 }
 
@@ -159,6 +159,6 @@ func (j *Auth) GetTokenFromHeaderAndVerify(c *gin.Context) (int, error) { // Cha
 		return 0, errors.New("Invalid issuer")
 	}
 
-    // Success: Return the UserID from the claims struct and nil error
-	return claims.UserID, nil 
+	// Success: Return the UserID from the claims struct and nil error
+	return claims.UserID, nil
 }

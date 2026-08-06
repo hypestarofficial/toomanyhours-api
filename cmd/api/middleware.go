@@ -18,7 +18,7 @@ func (app *application) enableCORS() gin.HandlerFunc {
 		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, X-CSRF-Token, Authorization")
-	
+
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(http.StatusNoContent)
 			return
@@ -35,7 +35,7 @@ func (app *application) AuthRequired() gin.HandlerFunc {
 			app.errorJSON(c, err, http.StatusUnauthorized)
 			return
 		}
-		
+
 		c.Set("userID", userID)
 		c.Next()
 	}

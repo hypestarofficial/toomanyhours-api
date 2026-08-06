@@ -73,8 +73,6 @@ func (app *application) routes() *gin.Engine {
 	{
 		// Admin Games Catalog (games with genres)
 		admin.GET("/games", app.GetGames) // query params: title, genreIds
-		admin.POST("/games", app.PostGameToGames)
-		admin.PUT("/games/:id", app.PutGameByGameId)
 		admin.DELETE("/games/:id", app.DeleteGameByGameId)
 	}
 

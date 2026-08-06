@@ -10,7 +10,7 @@ import (
 	"gorm.io/gorm"
 
 	pg_driver "gorm.io/driver/postgres"
-) 
+)
 
 func openDB(dsn string) (*sql.DB, error) {
 	db, err := sql.Open("pgx", dsn)

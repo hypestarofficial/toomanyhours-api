@@ -21,7 +21,7 @@ func (m *PostgresDBRepo) Connection() *sql.DB {
 	if err != nil {
 		panic(err)
 	}
-	
+
 	return db
 }
 
@@ -40,7 +40,10 @@ func (m *PostgresDBRepo) GetGames(ctx context.Context, title string, genreIDs []
 	}
 
 	if len(genreIDs) > 0 {
-		subQuery := m.GormDB.Select("game_id").Table("games_genres").Where("genre_id IN (?)", genreIDs)
+		// Tag ids now, not genre ids. The parameter keeps its name because the
+		// query string the frontend sends is still genreIds; renaming that is
+		// cycle 3's business along with the rest of that surface.
+		subQuery := m.GormDB.Select("game_id").Table("games_tags").Where("tag_id IN (?)", genreIDs)
 		query = query.Where("id IN (?)", subQuery)
 	}
 
@@ -50,7 +53,7 @@ func (m *PostgresDBRepo) GetGames(ctx context.Context, title string, genreIDs []
 		query = query.Where("id NOT IN (?)", owned)
 	}
 
-	result := query.Preload("Genres").
+	result := query.Preload("Tags").
 		Order("title").
 		Find(&games)
 
@@ -58,20 +61,34 @@ func (m *PostgresDBRepo) GetGames(ctx context.Context, title string, genreIDs []
 		return nil, result.Error
 	}
 
+	// Without this every game serialises with three empty arrays, which reads
+	// as a game with no genres rather than a loading mistake.
+	for _, g := range games {
+		g.SplitTags()
+	}
+
 	return games, nil
 }
 
-func (m *PostgresDBRepo) GetGenres(ctx context.Context) ([]*models.Genre, error) {
-	var genres []*models.Genre
+// GetGenres returns the genre tags, for the filter dropdown. Themes and game
+// modes live in the same table and are deliberately not returned: nothing
+// filters by them yet.
+func (m *PostgresDBRepo) GetGenres(ctx context.Context) ([]*models.Tag, error) {
+	var genres []*models.Tag
 
 	result := m.GormDB.WithContext(ctx).
-		Order("genre").
+		Where("facet = ?", "genre").
+		Order("name").
 		Find(&genres)
-	
+
 	if result.Error != nil {
 		return nil, result.Error
 	}
 
+	// Empty rather than nil: the frontend maps over this.
+	if genres == nil {
+		genres = []*models.Tag{}
+	}
 	return genres, nil
 }
 
@@ -79,7 +96,7 @@ func (m *PostgresDBRepo) GetGameByGameId(ctx context.Context, id int) (*models.G
 	var game models.Game
 
 	result := m.GormDB.WithContext(ctx).
-		Preload("Genres").
+		Preload("Tags").
 		First(&game, id)
 
 	if result.Error != nil {
@@ -88,6 +105,8 @@ func (m *PostgresDBRepo) GetGameByGameId(ctx context.Context, id int) (*models.G
 		}
 		return nil, result.Error
 	}
+
+	game.SplitTags()
 
 	return &game, nil
 }
@@ -149,80 +168,6 @@ func (m *PostgresDBRepo) UpdateUser(ctx context.Context, user *models.User) erro
 	if result.RowsAffected == 0 {
 		return gorm.ErrRecordNotFound
 	}
-	return nil
-}
-
-func (m *PostgresDBRepo) PostGameToGames(ctx context.Context, game models.Game) (int, error) {
-	var existingGame models.Game
-
-	err := m.GormDB.WithContext(ctx).First(&existingGame, game.ID).Error
-
-	if err == nil {
-		return existingGame.ID, nil
-	}
-
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return 0, err
-	}
-
-	result := m.GormDB.WithContext(ctx).
-		Create(&game)
-
-	if result.Error != nil {
-		return 0, result.Error
-	}
-
-	return game.ID, nil
-}
-
-func (m *PostgresDBRepo) PostGameGenres(ctx context.Context, id int, genreIDs []int) error {
-	var game models.Game
-	game.ID = id
-
-	// First, clear all existing genre associations
-	err := m.GormDB.WithContext(ctx).
-		Model(&game).
-		Association("Genres").
-		Clear()
-
-	if err != nil {
-		return err
-	}
-
-	// Then, add the new genres
-	if len(genreIDs) > 0 {
-		var genres []models.Genre
-		for _, gid := range genreIDs {
-			genres = append(genres, models.Genre{ID: gid})
-		}
-
-		err = m.GormDB.WithContext(ctx).
-			Model(&game).
-			Association("Genres").
-			Append(genres)
-
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (m* PostgresDBRepo) PutGameByGameId(ctx context.Context, game models.Game) error {
-	result := m.GormDB.WithContext(ctx).
-		Model(&game).
-		Select("Title", "Image", "ReleaseDate").
-		Updates(game)
-
-	if result.Error != nil {
-		return result.Error
-	}
-
-	if result.RowsAffected == 0 {
-		return errors.New("Game not found")
-	}
-
 	return nil
 }
 

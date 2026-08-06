@@ -7,9 +7,9 @@ import (
 )
 
 type JSONResponse struct {
-	Error bool `json:"error"`
+	Error   bool   `json:"error"`
 	Message string `json:"message"`
-	Data any `json:"data,omitempty"`
+	Data    any    `json:"data,omitempty"`
 }
 
 func (app *application) errorJSON(c *gin.Context, err error, status ...int) {
@@ -19,7 +19,7 @@ func (app *application) errorJSON(c *gin.Context, err error, status ...int) {
 	}
 
 	c.AbortWithStatusJSON(statusCode, JSONResponse{
-		Error: true,
+		Error:   true,
 		Message: err.Error(),
 	})
 }

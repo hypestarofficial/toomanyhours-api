@@ -55,9 +55,13 @@ func (app *application) routes() *gin.Engine {
 
 		// Users
 		auth.GET("/users/:id", app.GetUserByID)
-		
+
 		// Games
 		auth.GET("/games", app.GetGames) // query params: title, genreIds
+		// Static segment beside the :id wildcard. Verified to register in
+		// either order and to resolve ahead of /games/:id, so "search" is not
+		// swallowed as an id.
+		auth.GET("/games/search", app.SearchGames) // query params: q, limit
 		auth.GET("/games/:id", app.GetGameByGameId)
 
 		// Genres

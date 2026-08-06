@@ -38,6 +38,11 @@ func (app *application) routes() *gin.Engine {
 	router.GET("/refresh-token", app.RefreshToken)
 	router.GET("/logout", app.Logout)
 
+	// Public profiles. The only read path in this API with no token
+	// requirement, which is what makes a shared link work for someone who has
+	// no account.
+	router.GET("/profiles/:username", app.GetProfile)
+
 	// Authorized Routes
 	auth := router.Group("/")
 	// Check Auth Header for valid token
@@ -52,9 +57,6 @@ func (app *application) routes() *gin.Engine {
 		auth.POST("/me/games", app.PostMyGames)
 		auth.PATCH("/me/games/:gameId", app.PatchMyGame)
 		auth.DELETE("/me/games/:gameId", app.DeleteMyGame)
-
-		// Users
-		auth.GET("/users/:id", app.GetUserByID)
 
 		// Games. Search is the only catalog route left: browsing the local
 		// catalog existed to feed the picker and the admin page, and both are

@@ -439,40 +439,6 @@ func (app *application) RefreshToken(c *gin.Context) {
 	c.JSON(http.StatusOK, tokenPairs)
 }
 
-func (app *application) GetUserByID(c *gin.Context) {
-	id := c.Param("id")
-
-	userId, err := strconv.Atoi(id)
-	if err != nil {
-		app.errorJSON(c, err, http.StatusBadRequest)
-		return
-	}
-
-	user, err := app.DB.GetUserByID(c, userId)
-	if err != nil {
-		app.errorJSON(c, err, http.StatusInternalServerError)
-		return
-	}
-
-	type UserResponse struct {
-		ID        int       `json:"id"`
-		Username  string    `json:"username"`
-		Email     string    `json:"email"`
-		CreatedAt time.Time `json:"created_at"`
-		UpdatedAt time.Time `json:"updated_at"`
-	}
-
-	resp := UserResponse{
-		ID:        user.ID,
-		Username:  user.Username,
-		Email:     user.Email,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-	}
-
-	c.JSON(http.StatusOK, resp)
-}
-
 // Logout revokes the session server-side. Before this, it only cleared the
 // cookie in the caller's browser and the refresh token stayed valid for its
 // full 24 hours — so "log out" meant "please forget this", not "this no longer

@@ -64,6 +64,28 @@ func (m *PostgresDBRepo) GetUserByEmail(ctx context.Context, email string) (*mod
 	return &user, nil
 }
 
+// GetUserByUsername looks up a user by an already-normalised username.
+//
+// The WHERE matches the users_username_lower_idx expression index exactly, so
+// this is an index lookup rather than a scan. Callers pass a lowercased value;
+// the column stores the normalised form, so both sides agree.
+func (m *PostgresDBRepo) GetUserByUsername(ctx context.Context, username string) (*models.User, error) {
+	var user models.User
+
+	result := m.GormDB.WithContext(ctx).
+		Where("LOWER(username) = ?", username).
+		First(&user)
+
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, sql.ErrNoRows
+		}
+		return nil, result.Error
+	}
+
+	return &user, nil
+}
+
 func (m *PostgresDBRepo) GetUserByID(ctx context.Context, id int) (*models.User, error) {
 	var user models.User
 

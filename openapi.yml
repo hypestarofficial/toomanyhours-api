@@ -387,7 +387,11 @@ paths:
       summary: Update an entry's category, rating or review
       description: >-
         Moving a game between categories is a category-only PATCH. Rating and
-        review are not touched unless named.
+        review are not touched unless named, and are accepted only when the
+        resulting category is finished — the patched category when the request
+        names one, otherwise the entry's current category. Finishing a game
+        therefore moves it and rates it in a single request. A rating already
+        stored on an entry is kept when that entry moves out of finished.
       tags: [UserGames]
       security:
         - BearerAuth: []
@@ -403,7 +407,9 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/UserGame' }
         '400':
-          description: Nothing to update, or a value out of range
+          description: >-
+            Nothing to update, a value out of range, or a rating or review on
+            an entry whose resulting category is not finished.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }

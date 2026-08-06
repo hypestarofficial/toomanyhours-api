@@ -941,12 +941,20 @@ components:
         One IGDB search result. Not a catalog row - there may be no local game
         behind it. The key is igdbId, never id, because both are integers in
         overlapping ranges and a mix-up would half-work rather than fail.
-      required: [igdbId, title, genres, themes, gameModes]
+      required: [igdbId, title, kind, genres, themes, gameModes]
       properties:
         igdbId:
           type: integer
         title:
           type: string
+        kind:
+          type: string
+          example: main_game
+          description: >-
+            IGDB's release type — main_game, dlc, expansion, bundle, remaster,
+            expanded_game and so on, or unknown. Deliberately not called
+            category, which in this API means finished/currently_playing/
+            want_to_play.
         image:
           type: string
           nullable: true

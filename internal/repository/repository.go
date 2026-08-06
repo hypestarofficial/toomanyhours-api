@@ -10,7 +10,7 @@ type DatabaseRepo interface {
 	Connection() *sql.DB
 
 	// Games
-	GetGames(ctx context.Context, title string, genreIDs []int) ([]*models.Game, error)
+	GetGames(ctx context.Context, title string, genreIDs []int, excludeUserID int) ([]*models.Game, error)
 	GetGameByGameId(ctx context.Context, id int) (*models.Game, error)
 	PostGameToGames(ctx context.Context, game models.Game) (int, error)
 	PutGameByGameId(ctx context.Context, game models.Game) error

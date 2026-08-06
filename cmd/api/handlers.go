@@ -171,7 +171,20 @@ func (app *application) GetGames(c *gin.Context) {
 		}
 	}
 
-	games, err := app.DB.GetGames(c,title, genreIDs)
+	// Opt-in. Absent means the caller wants the catalog as it is, which is what
+	// every existing caller wants.
+	excludeUserID := 0
+	if c.Query("excludeMine") == "true" {
+		// From the verified token, never the request: a user id in the query
+		// string would let anyone ask what somebody else has not played.
+		userID, ok := app.currentUserID(c)
+		if !ok {
+			return
+		}
+		excludeUserID = userID
+	}
+
+	games, err := app.DB.GetGames(c, title, genreIDs, excludeUserID)
 	if err != nil {
 			app.errorJSON(c, err, http.StatusInternalServerError)
 			return

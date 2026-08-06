@@ -30,7 +30,7 @@ type DatabaseRepo interface {
 
 	// User Games (the list)
 	GetUserGames(ctx context.Context, userID int) ([]*models.UserGame, error)
-	UpsertUserGames(ctx context.Context, userID int, gameIDs []int, category string) ([]*models.UserGame, error)
+	AddUserGames(ctx context.Context, userID int, gameIDs []int, category string) ([]*models.UserGame, error)
 	UpdateUserGame(ctx context.Context, userID, gameID int, upd models.UserGameUpdate) (*models.UserGame, error)
 	DeleteUserGame(ctx context.Context, userID, gameID int) error
 	GamesExist(ctx context.Context, gameIDs []int) (bool, error)

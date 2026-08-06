@@ -158,7 +158,19 @@ paths:
       summary: Exchange the refresh cookie for a new token pair
       description: >-
         Authenticated by the `__Host-refresh_token` cookie rather than a bearer
-        token, so the caller must send credentials with the request.
+        token, so the caller must send credentials with the request. The cookie
+        carries only a token id; the server decides validity from its own
+        records, which is what makes logout able to revoke it.
+
+
+        Single use: each refresh consumes its token and returns a successor.
+        Presenting an already-consumed token more than a few seconds later,
+        while the session is still live, is treated as a leaked copy and
+        revokes every token from that login.
+
+
+        An access token is not accepted here. Access tokens carry no token id,
+        and this endpoint requires one.
       tags: [Auth]
       security: []   # deliberately public
       responses:
@@ -168,7 +180,11 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/TokenPairs' }
         '401':
-          description: Cookie missing or invalid, or the user no longer exists
+          description: >-
+            Cookie missing, unreadable, unknown, expired, already consumed,
+            belonging to a logged-out session, or an access token presented in
+            its place. Deliberately indistinguishable — the caller learns only
+            that it failed. The response also expires the cookie.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -181,10 +197,17 @@ paths:
   /logout:
     get:
       operationId: logout
-      summary: Clear the refresh cookie
+      summary: End the session
       description: >-
-        Always succeeds. The access token lives in client memory and is
-        discarded there.
+        Revokes every refresh token from this login and expires the cookie.
+        Always succeeds, including when the cookie is missing or unreadable —
+        an unauthenticated caller should not learn which.
+
+
+        The access token lives in client memory and is discarded there, so it
+        stays technically valid until it expires, at most 15 minutes. Checking
+        the database on every authenticated request would be the only way to
+        make that instant, which would discard the reason for using JWTs.
       tags: [Auth]
       security: []   # deliberately public
       responses:

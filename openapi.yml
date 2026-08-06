@@ -626,7 +626,7 @@ paths:
             application/json:
               schema:
                 type: array
-                items: { $ref: '#/components/schemas/Genre' }
+                items: { $ref: '#/components/schemas/Tag' }
         '401':
           description: Missing, malformed, or expired bearer token
           content:
@@ -671,91 +671,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
-    post:
-      operationId: createGame
-      summary: Add a game to the catalog
-      description: >-
-        Effectively an upsert by Steam app ID: if a row with the supplied id
-        already exists, that row is returned unchanged rather than an error, but
-        its genre associations are still replaced by genreIds.
-      tags: [Admin]
-      security:
-        - BearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/GameRequest' }
-      responses:
-        '201':
-          description: The stored game, re-read with its genres
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Game' }
-        '400':
-          description: Malformed body
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
-        '401':
-          description: Missing, malformed, or expired bearer token
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
-        '500':
-          description: Persistence failed
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
-
   /admin/games/{id}:
-    put:
-      operationId: updateGame
-      summary: Update a game
-      description: >-
-        Updates title, image and release date, then replaces all genre
-        associations with genreIds. Omitting genreIds clears them: this is a
-        full replace, not a merge.
-      tags: [Admin]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          description: Steam app ID
-          schema: { type: integer }
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/GameRequest' }
-      responses:
-        '200':
-          description: The updated game, re-read with its genres
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Game' }
-        '400':
-          description: Malformed id or body
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
-        '401':
-          description: Missing, malformed, or expired bearer token
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
-        '404':
-          description: No such game
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
-        '500':
-          description: Update failed
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
     delete:
       operationId: deleteGame
       summary: Delete a game
@@ -827,54 +743,55 @@ components:
       schema: { type: string }
 
   schemas:
-    Genre:
+    Tag:
       type: object
-      required: [id, genre]
+      description: >-
+        A genre, theme or game mode. IGDB attaches all three to a game and they
+        behave identically, so they share one table and one type here.
+      required: [id, name]
       properties:
         id: { type: integer, example: 7 }
-        genre: { type: string, example: FPS }
+        name: { type: string, example: Shooter }
 
     Game:
       type: object
-      required: [id, title, image, releaseDate]
+      required: [id, igdbId, title, image, kind, releaseDate, genres, themes, gameModes]
       properties:
         id:
           type: integer
-          example: 730
-          description: Steam app ID, supplied by the client rather than generated.
+          example: 3240221
+          description: >-
+            Surrogate key, generated. It means nothing outside this database —
+            use igdbId to identify the game anywhere else.
+        igdbId:
+          type: integer
+          example: 1942
+          description: IGDB's identifier for the game. Unique.
         title: { type: string }
         image:
           type: string
-          description: Absolute URL to cover art.
+          description: Absolute URL to cover art, from IGDB.
+        kind:
+          type: string
+          example: main_game
+          description: >-
+            IGDB's release type — main_game, dlc, expansion, bundle, remaster,
+            expanded_game and so on, or unknown. Deliberately not called
+            category, which in this API means finished/currently_playing/
+            want_to_play.
         releaseDate: { type: string, format: date-time }
         genres:
           type: array
-          description: Present on reads, omitted when empty.
-          items: { $ref: '#/components/schemas/Genre' }
-        genreIds:
+          description: Always present; empty when the game has none.
+          items: { $ref: '#/components/schemas/Tag' }
+        themes:
           type: array
-          description: >-
-            Write-only, and never present in a response — the Go field is
-            gorm:"-", so it is transport only.
-          items: { type: integer }
-
-    GameRequest:
-      type: object
-      required: [title, image, releaseDate]
-      properties:
-        id:
-          type: integer
-          description: >-
-            Steam app ID. Required on create; ignored on update, where the path
-            parameter identifies the game.
-        title: { type: string }
-        image: { type: string }
-        releaseDate: { type: string, format: date-time }
-        genreIds:
+          description: Always present; empty when the game has none.
+          items: { $ref: '#/components/schemas/Tag' }
+        gameModes:
           type: array
-          description: >-
-            Replaces all existing genre associations. Omitting it clears them.
-          items: { type: integer }
+          description: Always present; empty when the game has none.
+          items: { $ref: '#/components/schemas/Tag' }
 
     User:
       type: object
@@ -980,10 +897,26 @@ components:
 
     AddUserGamesRequest:
       type: object
-      required: [gameIds, category]
+      description: >-
+        Exactly one of gameIds and igdbIds is required; sending both is a 400,
+        because there is no good answer to what should happen when they disagree
+        about the same game.
+      required: [category]
       properties:
         gameIds:
           type: array
+          description: >-
+            Local catalog ids, as the current Add Game modal sends. Disappears
+            when that modal moves to IGDB search.
+          minItems: 1
+          maxItems: 50
+          items: { type: integer }
+        igdbIds:
+          type: array
+          description: >-
+            IGDB ids. Any game the catalog has not seen is fetched from IGDB and
+            imported before the list entry is created. An id IGDB does not know
+            is a 404.
           minItems: 1
           maxItems: 50
           items: { type: integer }

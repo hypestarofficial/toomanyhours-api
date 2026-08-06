@@ -102,6 +102,30 @@ func (m *PostgresDBRepo) AddUserGames(ctx context.Context, userID int, gameIDs [
 	return entries, nil
 }
 
+// GetUserGameCategory returns just the category of one entry.
+//
+// Narrow on purpose. The rating rule needs one column, and loading the row with
+// its game and its genres preloaded to read a single string would be the
+// expensive way to ask. Returns gorm.ErrRecordNotFound when the entry is not in
+// this user's list, matching UpdateUserGame so the handler can answer 404 the
+// same way for both.
+func (m *PostgresDBRepo) GetUserGameCategory(ctx context.Context, userID, gameID int) (string, error) {
+	var entry models.UserGame
+
+	// First is what produces gorm.ErrRecordNotFound on a miss. Pluck would leave
+	// the string empty and return a nil error, so a missing entry would read as
+	// an empty category and fail the rule with the wrong status code.
+	err := m.scopedToUser(ctx, userID).
+		Select("category").
+		Where("game_id = ?", gameID).
+		First(&entry).Error
+
+	if err != nil {
+		return "", err
+	}
+	return entry.Category, nil
+}
+
 // UpdateUserGame applies a PATCH to one entry, returning the updated row.
 // Returns gorm.ErrRecordNotFound when the entry is not in this user's list —
 // including when it exists but belongs to someone else, which the caller turns

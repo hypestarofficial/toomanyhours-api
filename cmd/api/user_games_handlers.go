@@ -163,6 +163,30 @@ func (app *application) PatchMyGame(c *gin.Context) {
 		upd.Category = &category
 	}
 
+	// Only when the request actually carries a rating or a review. A
+	// category-only PATCH is the drag path, by far the hottest, and it keeps
+	// doing exactly the queries it did before this rule existed.
+	if requestPayload.Rating != nil || requestPayload.Review != nil {
+		current, err := app.DB.GetUserGameCategory(c, userID, gameID)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				app.errorJSON(c, errors.New("Not in your list"), http.StatusNotFound)
+				return
+			}
+			app.errorJSON(c, errors.New("Could not update your list"), http.StatusInternalServerError)
+			return
+		}
+
+		// The resulting category, not the current one: finishing a game moves it
+		// and rates it in the same request. upd.Category is the normalized value
+		// validate.Category returned, so "  Finished  " is judged as the category
+		// actually about to be written.
+		if !validate.RatingAllowed(validate.ResultingCategory(current, upd.Category)) {
+			app.errorJSON(c, errors.New("You can only rate and review games you have finished"), http.StatusBadRequest)
+			return
+		}
+	}
+
 	if requestPayload.Rating != nil {
 		upd.SetRating = true
 		if *requestPayload.Rating != 0 {

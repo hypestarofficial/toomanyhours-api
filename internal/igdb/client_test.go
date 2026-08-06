@@ -323,3 +323,76 @@ func TestSearchSendsAnEscapedApicalypseQuery(t *testing.T) {
 		t.Fatalf("query requests IGDB's category field: %s", got)
 	}
 }
+
+func TestSearchParsesKind(t *testing.T) {
+	f := newFakeIGDB(t)
+	f.searchBody = `[{"id":19457,"name":"Skyrim SE","game_type":{"id":9,"type":"Remaster"}},
+	                 {"id":1,"name":"No Type Given"}]`
+	c := f.client(time.Now)
+
+	games, err := c.Search(context.Background(), "skyrim", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if games[0].Kind != "remaster" {
+		t.Fatalf("kind = %q, want remaster", games[0].Kind)
+	}
+	// A game with no game_type must still import.
+	if games[1].Kind != "unknown" {
+		t.Fatalf("missing game_type kind = %q, want unknown", games[1].Kind)
+	}
+}
+
+func TestSearchExcludesNoiseTypes(t *testing.T) {
+	f := newFakeIGDB(t)
+	c := f.client(time.Now)
+
+	if _, err := c.Search(context.Background(), "witcher", 10); err != nil {
+		t.Fatal(err)
+	}
+
+	got := f.lastBody()
+	for _, id := range []int{5, 12, 13, 14} {
+		if !strings.Contains(got, fmt.Sprintf("game_type != %d", id)) {
+			t.Fatalf("query does not exclude game_type %d: %s", id, got)
+		}
+	}
+	if !strings.Contains(got, "game_type.type") {
+		t.Fatalf("query does not request game_type.type: %s", got)
+	}
+}
+
+func TestGetByIDsQueriesByIDAndDoesNotExclude(t *testing.T) {
+	f := newFakeIGDB(t)
+	c := f.client(time.Now)
+
+	if _, err := c.GetByIDs(context.Background(), []int{1942, 9630}); err != nil {
+		t.Fatal(err)
+	}
+
+	got := f.lastBody()
+	if !strings.Contains(got, "where id = (1942,9630);") {
+		t.Fatalf("unexpected id clause: %s", got)
+	}
+	if strings.Contains(got, "search ") {
+		t.Fatalf("GetByIDs must not send a search clause: %s", got)
+	}
+	// The exclusion belongs to Search only. Importing an id someone named
+	// explicitly must work even for a Pack / Addon.
+	if strings.Contains(got, "game_type !=") {
+		t.Fatalf("GetByIDs must not exclude release types: %s", got)
+	}
+}
+
+func TestGetByIDsWithNoIDsMakesNoRequest(t *testing.T) {
+	f := newFakeIGDB(t)
+	c := f.client(time.Now)
+
+	games, err := c.GetByIDs(context.Background(), nil)
+	if err != nil || len(games) != 0 {
+		t.Fatalf("games = %v, err = %v", games, err)
+	}
+	if got := f.searchCalls.Load(); got != 0 {
+		t.Fatalf("made %d requests for an empty id list, want 0", got)
+	}
+}

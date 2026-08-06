@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -220,10 +221,15 @@ type apiGame struct {
 	Cover *struct {
 		ImageID string `json:"image_id"`
 	} `json:"cover"`
-	FirstReleaseDate *int64   `json:"first_release_date"`
-	Genres           []apiTag `json:"genres"`
-	Themes           []apiTag `json:"themes"`
-	GameModes        []apiTag `json:"game_modes"`
+	FirstReleaseDate *int64 `json:"first_release_date"`
+	// A reference, not a scalar: the query asks for game_type.type so this
+	// comes back as a name rather than an id.
+	GameType *struct {
+		Type string `json:"type"`
+	} `json:"game_type"`
+	Genres    []apiTag `json:"genres"`
+	Themes    []apiTag `json:"themes"`
+	GameModes []apiTag `json:"game_modes"`
 }
 
 type apiTag struct {
@@ -241,18 +247,69 @@ func tags(in []apiTag) []Tag {
 	return out
 }
 
+// gameFields is shared by Search and GetByIDs so a field the parser reads can
+// never be missing from one of them. game_type is a reference, so it needs
+// .type to come back as a name rather than an id; `category` is deprecated and
+// returns null for every game.
+const gameFields = `fields id,name,cover.image_id,first_release_date,game_type.type,` +
+	`genres.id,genres.name,themes.id,themes.name,game_modes.id,game_modes.name;`
+
+// excludeNoise drops the release types nobody is trying to add to a list.
+// Weapon and skin packs are almost all Pack / Addon, so that one cut does most
+// of the work.
+//
+// DLC, Expansion, Bundle, Remaster and Expanded Game deliberately stay: GOTY
+// editions are real, and two of the games already in this database are a
+// remaster (Skyrim SE) and an expanded game (GTA V Enhanced). A main-game-only
+// filter would exclude games from the very lists it serves.
+//
+// It cannot be perfect. Some cosmetic packs are filed under DLC, which stays.
+// IGDB has no "is this cosmetic" flag, so the choice is between removing most
+// noise and also removing Blood and Wine.
+var excludeNoise = fmt.Sprintf(
+	"where game_type != %d & game_type != %d & game_type != %d & game_type != %d;",
+	typeMod, typeFork, typePackAddon, typeUpdate,
+)
+
 // Search returns games matching a free-text query, best match first.
 //
 // IGDB's `search` sorts by relevance and cannot be combined with an explicit
 // sort, which is why none is requested.
 func (c *Client) Search(ctx context.Context, query string, limit int) ([]Game, error) {
-	body := fmt.Sprintf(
-		`search "%s"; fields id,name,cover.image_id,first_release_date,`+
-			`genres.id,genres.name,themes.id,themes.name,game_modes.id,game_modes.name; `+
-			`limit %d;`,
-		escapeSearchTerm(query), limit,
-	)
+	body := fmt.Sprintf(`search "%s"; %s %s limit %d;`,
+		escapeSearchTerm(query), gameFields, excludeNoise, limit)
 
+	return c.games(ctx, body)
+}
+
+// GetByIDs fetches games by IGDB id, for importing something a user has chosen.
+//
+// No exclusion clause: the filter on Search exists to keep results readable,
+// and refusing to import an id someone named explicitly would be a second,
+// invisible rule. Search decides what is easy to find, not what may exist.
+//
+// Ids are integers, so nothing user-supplied is interpolated into the query.
+func (c *Client) GetByIDs(ctx context.Context, ids []int) ([]Game, error) {
+	if len(ids) == 0 {
+		return []Game{}, nil
+	}
+
+	list := make([]string, 0, len(ids))
+	for _, id := range ids {
+		list = append(list, strconv.Itoa(id))
+	}
+
+	body := fmt.Sprintf(`where id = (%s); %s limit %d;`,
+		strings.Join(list, ","), gameFields, len(ids))
+
+	return c.games(ctx, body)
+}
+
+// games runs one Apicalypse body against /games and parses the result.
+//
+// Shared so Search and GetByIDs cannot decode differently: a field handled in
+// one and not the other would show up as a game that imports with no cover.
+func (c *Client) games(ctx context.Context, body string) ([]Game, error) {
 	raw, err := c.do(ctx, "/games", body)
 	if err != nil {
 		return nil, err
@@ -268,9 +325,16 @@ func (c *Client) Search(ctx context.Context, query string, limit int) ([]Game, e
 		g := Game{
 			IGDBID:    p.ID,
 			Title:     p.Name,
+			Kind:      "unknown",
 			Genres:    tags(p.Genres),
 			Themes:    tags(p.Themes),
 			GameModes: tags(p.GameModes),
+		}
+
+		// A game with no game_type must still import, so the zero value is a
+		// storable slug rather than an empty string.
+		if p.GameType != nil {
+			g.Kind = kindSlug(p.GameType.Type)
 		}
 
 		if p.Cover != nil && p.Cover.ImageID != "" {

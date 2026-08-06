@@ -34,6 +34,11 @@ type Tag struct {
 type Game struct {
 	IGDBID int    `json:"igdbId"`
 	Title  string `json:"title"`
+	// What sort of release this is: main_game, dlc, expansion, bundle,
+	// remaster and so on. Named kind rather than category because this
+	// product's categories are finished/currently_playing/want_to_play, and
+	// two meanings for one word in one codebase is how bugs get written.
+	Kind string `json:"kind"`
 	// Nullable. IGDB has games with no cover art and games with no announced
 	// date, both common enough that a client assuming otherwise breaks on a
 	// real search.

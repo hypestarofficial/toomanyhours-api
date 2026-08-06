@@ -34,7 +34,9 @@ tags:
   - name: Auth
     description: Registration, login, token refresh, logout
   - name: Users
-    description: The authenticated user and user lookup
+    description: The authenticated user
+  - name: Profiles
+    description: Public profiles, readable without a token
   - name: UserGames
     description: The authenticated user's list
   - name: Games
@@ -218,6 +220,46 @@ paths:
                 required: [message]
                 properties:
                   message: { type: string, example: Logged out }
+
+  /profiles/{username}:
+    get:
+      operationId: getProfile
+      summary: A public profile and its list
+      description: >-
+        The only read path with no token requirement. Returns 403 rather than
+        404 for a private profile, so a link that stopped working says why —
+        accepting that the status code confirms the username is taken. The
+        route is always anonymous, so a private profile answers 403 to its
+        owner too.
+      tags: [Profiles]
+      security: []   # deliberately public
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema: { type: string }
+          description: Case-insensitive; normalised before lookup.
+      responses:
+        '200':
+          description: The profile and every entry in its list
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PublicProfile' }
+        '403':
+          description: The profile is private
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: No such username
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          description: Lookup failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
 
   /me:
     get:
@@ -453,40 +495,6 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
 
-  /users/{id}:
-    get:
-      operationId: getUserById
-      summary: Get a user by id
-      tags: [Users]
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: integer }
-      responses:
-        '200':
-          description: The user
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/User' }
-        '400':
-          description: The id is not an integer
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
-        '401':
-          description: Missing, malformed, or expired bearer token
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
-        '500':
-          description: Lookup failed, including when no such user exists
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
-
   /games/search:
     get:
       operationId: searchGames
@@ -693,6 +701,23 @@ components:
       properties:
         username: { type: string, minLength: 3, maxLength: 16 }
         visibility: { type: string, enum: [public, private] }
+
+    PublicProfile:
+      type: object
+      description: >-
+        What a stranger sees. Deliberately not APIUser — no email and no id,
+        because nothing on the page needs either and an id would invite a
+        second read path needing the same visibility check.
+      required: [username, createdAt, entries]
+      properties:
+        username:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        entries:
+          type: array
+          items: { $ref: '#/components/schemas/UserGame' }
 
     UserGame:
       type: object

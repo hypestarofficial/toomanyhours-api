@@ -207,7 +207,44 @@ func (c *Client) do(ctx context.Context, path, body string) ([]byte, error) {
 	return raw, nil
 }
 
+// coverBaseURL builds a usable image URL from IGDB's image_id. t_cover_big is
+// 264x374, which is what the card grid renders.
+const coverBaseURL = "https://images.igdb.com/igdb/image/upload/t_cover_big/"
+
+// apiGame mirrors IGDB's JSON. Kept unexported and separate from Game so the
+// shape we expose is ours: renaming a field here cannot silently change the
+// API contract.
+type apiGame struct {
+	ID    int    `json:"id"`
+	Name  string `json:"name"`
+	Cover *struct {
+		ImageID string `json:"image_id"`
+	} `json:"cover"`
+	FirstReleaseDate *int64   `json:"first_release_date"`
+	Genres           []apiTag `json:"genres"`
+	Themes           []apiTag `json:"themes"`
+	GameModes        []apiTag `json:"game_modes"`
+}
+
+type apiTag struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+func tags(in []apiTag) []Tag {
+	// Empty rather than nil: a nil slice marshals to JSON null, and consumers
+	// map over this.
+	out := make([]Tag, 0, len(in))
+	for _, t := range in {
+		out = append(out, Tag{IGDBID: t.ID, Name: t.Name})
+	}
+	return out
+}
+
 // Search returns games matching a free-text query, best match first.
+//
+// IGDB's `search` sorts by relevance and cannot be combined with an explicit
+// sort, which is why none is requested.
 func (c *Client) Search(ctx context.Context, query string, limit int) ([]Game, error) {
 	body := fmt.Sprintf(
 		`search "%s"; fields id,name,cover.image_id,first_release_date,`+
@@ -216,8 +253,40 @@ func (c *Client) Search(ctx context.Context, query string, limit int) ([]Game, e
 		escapeSearchTerm(query), limit,
 	)
 
-	if _, err := c.do(ctx, "/games", body); err != nil {
+	raw, err := c.do(ctx, "/games", body)
+	if err != nil {
 		return nil, err
 	}
-	return []Game{}, nil
+
+	var parsed []apiGame
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		return nil, fmt.Errorf("%w: decoding search results: %v", ErrUpstream, err)
+	}
+
+	games := make([]Game, 0, len(parsed))
+	for _, p := range parsed {
+		g := Game{
+			IGDBID:    p.ID,
+			Title:     p.Name,
+			Genres:    tags(p.Genres),
+			Themes:    tags(p.Themes),
+			GameModes: tags(p.GameModes),
+		}
+
+		if p.Cover != nil && p.Cover.ImageID != "" {
+			image := coverBaseURL + p.Cover.ImageID + ".jpg"
+			g.Image = &image
+		}
+		if p.FirstReleaseDate != nil {
+			// Unix seconds, UTC. Formatting in local time would show the wrong
+			// day either side of midnight — the same class of mistake as the
+			// naive timestamps in refresh_tokens.
+			date := time.Unix(*p.FirstReleaseDate, 0).UTC().Format("2006-01-02")
+			g.ReleaseDate = &date
+		}
+
+		games = append(games, g)
+	}
+
+	return games, nil
 }

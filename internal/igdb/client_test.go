@@ -208,3 +208,118 @@ func TestUpstreamFailureIsReported(t *testing.T) {
 		t.Fatalf("upstream body leaked into the error: %v", err)
 	}
 }
+
+// A response with everything present, and one with nothing optional present.
+// IGDB really does return games with no cover and no announced date, and a
+// parser that assumes otherwise crashes on an ordinary search.
+const searchFixture = `[
+  {
+    "id": 1942,
+    "name": "The Witcher 3: Wild Hunt",
+    "cover": {"id": 89386, "image_id": "co1wyy"},
+    "first_release_date": 1431993600,
+    "genres": [{"id": 12, "name": "Role-playing (RPG)"}, {"id": 31, "name": "Adventure"}],
+    "themes": [{"id": 17, "name": "Fantasy"}],
+    "game_modes": [{"id": 1, "name": "Single player"}]
+  },
+  {
+    "id": 999999,
+    "name": "Unannounced Thing"
+  }
+]`
+
+func TestSearchParsesResults(t *testing.T) {
+	f := newFakeIGDB(t)
+	f.searchBody = searchFixture
+	c := f.client(time.Now)
+
+	games, err := c.Search(context.Background(), "witcher", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(games) != 2 {
+		t.Fatalf("got %d games, want 2", len(games))
+	}
+
+	w := games[0]
+	if w.IGDBID != 1942 || w.Title != "The Witcher 3: Wild Hunt" {
+		t.Fatalf("first game = %+v", w)
+	}
+	if w.Image == nil || *w.Image != "https://images.igdb.com/igdb/image/upload/t_cover_big/co1wyy.jpg" {
+		t.Fatalf("image = %v", w.Image)
+	}
+	if w.ReleaseDate == nil || *w.ReleaseDate != "2015-05-19" {
+		t.Fatalf("releaseDate = %v", w.ReleaseDate)
+	}
+	if len(w.Genres) != 2 || w.Genres[0].IGDBID != 12 || w.Genres[0].Name != "Role-playing (RPG)" {
+		t.Fatalf("genres = %+v", w.Genres)
+	}
+	if len(w.Themes) != 1 || w.Themes[0].IGDBID != 17 {
+		t.Fatalf("themes = %+v", w.Themes)
+	}
+	if len(w.GameModes) != 1 || w.GameModes[0].Name != "Single player" {
+		t.Fatalf("gameModes = %+v", w.GameModes)
+	}
+}
+
+func TestSearchHandlesMissingOptionalFields(t *testing.T) {
+	f := newFakeIGDB(t)
+	f.searchBody = searchFixture
+	c := f.client(time.Now)
+
+	games, err := c.Search(context.Background(), "witcher", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bare := games[1]
+	if bare.Image != nil {
+		t.Fatalf("image = %v, want nil", *bare.Image)
+	}
+	if bare.ReleaseDate != nil {
+		t.Fatalf("releaseDate = %v, want nil", *bare.ReleaseDate)
+	}
+	// Empty, not nil: a nil slice marshals to JSON null, and the same mistake
+	// in GetUserGames made an empty list crash the frontend.
+	if bare.Genres == nil || bare.Themes == nil || bare.GameModes == nil {
+		t.Fatalf("tag slices must be empty, not nil: %+v", bare)
+	}
+	if len(bare.Genres) != 0 {
+		t.Fatalf("genres = %+v, want empty", bare.Genres)
+	}
+}
+
+// What actually reaches IGDB: the escaped term, the fields the parser expects,
+// and the limit. The escaping unit test proves the function; this proves the
+// function is wired into the request that gets sent.
+func TestSearchSendsAnEscapedApicalypseQuery(t *testing.T) {
+	f := newFakeIGDB(t)
+	c := f.client(time.Now)
+
+	if _, err := c.Search(context.Background(), `x"; fields *;`, 25); err != nil {
+		t.Fatal(err)
+	}
+
+	got := f.lastBody()
+
+	// The hostile term stays inside the string literal: with the quote escaped,
+	// its semicolons are just characters.
+	if !strings.Contains(got, `search "x\"; fields *;";`) {
+		t.Fatalf("term was not escaped into the query: %s", got)
+	}
+	if !strings.Contains(got, "limit 25;") {
+		t.Fatalf("limit missing from query: %s", got)
+	}
+	// Every field the parser reads must be requested, or the parse silently
+	// yields zero values rather than failing.
+	for _, field := range []string{"cover.image_id", "first_release_date", "genres.id", "themes.id", "game_modes.id"} {
+		if !strings.Contains(got, field) {
+			t.Fatalf("query does not request %s: %s", field, got)
+		}
+	}
+	// IGDB's `category` means DLC/expansion and would collide with this
+	// product's categories. Asking for it is how that confusion starts.
+	if strings.Contains(got, "category") {
+		t.Fatalf("query requests IGDB's category field: %s", got)
+	}
+}

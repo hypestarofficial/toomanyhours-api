@@ -39,6 +39,7 @@ type DatabaseRepo interface {
 	CreateRefreshToken(ctx context.Context, token *models.RefreshToken) error
 	GetRefreshToken(ctx context.Context, jti string) (*models.RefreshToken, error)
 	RevokeRefreshToken(ctx context.Context, jti string) error
+	FamilyHasActiveToken(ctx context.Context, familyID string) (bool, error)
 	RevokeRefreshFamily(ctx context.Context, familyID string) error
 	DeleteExpiredRefreshTokens(ctx context.Context) error
 }

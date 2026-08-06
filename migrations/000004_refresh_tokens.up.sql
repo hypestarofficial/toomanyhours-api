@@ -14,11 +14,20 @@ CREATE TABLE public.refresh_tokens (
     -- leaves the user's other devices alone.
     family_id  text    NOT NULL,
     user_id    integer NOT NULL,
-    expires_at timestamp without time zone NOT NULL,
+    -- timestamptz, deliberately unlike every other table here.
+    --
+    -- The rest of the schema uses `timestamp without time zone`, and those
+    -- columns are only ever ordered or displayed. These are compared against
+    -- Go's clock, and a naive column stores whatever local time the process
+    -- happened to be in: running in CEST wrote values two hours ahead of the
+    -- database's own now(). Read back, that made every elapsed-time
+    -- calculation negative — which silently held the grace window open and
+    -- let tokens outlive their expiry.
+    expires_at timestamptz NOT NULL,
     -- NULL means active. A timestamp rather than a boolean because the grace
     -- window needs to know how long ago it was consumed.
-    revoked_at timestamp without time zone,
-    created_at timestamp without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    revoked_at timestamptz,
+    created_at timestamptz NOT NULL DEFAULT now(),
 
     CONSTRAINT refresh_tokens_pkey PRIMARY KEY (id),
     CONSTRAINT refresh_tokens_jti_key UNIQUE (jti)

@@ -13,6 +13,14 @@ type State struct {
 	// nil means active. Non-nil records when the token was consumed, which the
 	// grace window needs — a boolean could not express "a moment ago".
 	RevokedAt *time.Time
+	// Whether any token in this family is still alive.
+	//
+	// This is what separates "revoked because it was rotated" from "revoked
+	// because the session ended". Rotation always leaves a live successor;
+	// logout and reuse detection revoke the whole family and leave nothing.
+	// Without it, a replay within the grace window would resurrect a session
+	// the user had explicitly logged out of.
+	FamilyActive bool
 }
 
 type Decision int
@@ -21,6 +29,9 @@ const (
 	Accept Decision = iota
 	RejectUnknown
 	RejectExpired
+	// RejectRevoked is a session that is simply over — logged out, or already
+	// killed by reuse detection. Nothing more to revoke, and no alarm.
+	RejectRevoked
 	ReuseDetected
 )
 
@@ -32,6 +43,8 @@ func (d Decision) String() string {
 		return "RejectUnknown"
 	case RejectExpired:
 		return "RejectExpired"
+	case RejectRevoked:
+		return "RejectRevoked"
 	case ReuseDetected:
 		return "ReuseDetected"
 	}
@@ -50,6 +63,10 @@ func (d Decision) String() string {
 // without this the second one to arrive would be indistinguishable from a
 // stolen token being replayed — and the user would be logged out of both for
 // doing nothing.
+//
+// The grace window applies only while the family still has a live token. A
+// revoked token in a dead family is a session that has ended — logged out, or
+// already killed by reuse detection — and no grace period should bring it back.
 func Decide(state State, now time.Time, grace time.Duration) Decision {
 	if !state.Found {
 		return RejectUnknown
@@ -61,6 +78,9 @@ func Decide(state State, now time.Time, grace time.Duration) Decision {
 	}
 
 	if state.RevokedAt != nil {
+		if !state.FamilyActive {
+			return RejectRevoked
+		}
 		if now.Sub(*state.RevokedAt) <= grace {
 			return Accept
 		}

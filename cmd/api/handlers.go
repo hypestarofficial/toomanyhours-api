@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 	"toomanyhours-api/internal/models"
+	"toomanyhours-api/internal/refresh"
 	"toomanyhours-api/internal/validate"
 
 	"github.com/gin-gonic/gin"
@@ -262,7 +263,7 @@ func (app *application) Register(c *gin.Context) {
 		return
 	}
 
-	tokens, err := app.auth.GenerateTokenPair(&jwtUser{ID: user.ID, Username: user.Username})
+	tokens, err := app.issueSession(c, &user, "")
 	if err != nil {
 		app.errorJSON(c, err, http.StatusInternalServerError)
 		return
@@ -361,12 +362,11 @@ func (app *application) Authenticate(c *gin.Context) {
 	app.loginIPLimiter.Reset(ipKey)
 	app.loginEmailLimiter.Reset(emailKey)
 
-	u := jwtUser{
-		ID: user.ID,
-		Username: user.Username,
-	}
+	// Bounded, indexed housekeeping on a path that is already spending time on
+	// bcrypt, so there is no scheduler or goroutine to own.
+	_ = app.DB.DeleteExpiredRefreshTokens(c)
 
-	tokens, err := app.auth.GenerateTokenPair(&u)
+	tokens, err := app.issueSession(c, user, "")
 	if err != nil {
 		app.errorJSON(c, err, http.StatusInternalServerError)
 		return
@@ -378,6 +378,16 @@ func (app *application) Authenticate(c *gin.Context) {
 	c.JSON(http.StatusAccepted, tokens)
 }
 
+// endRefreshSession returns 401 and expires the cookie, so a browser holding a
+// dead token stops sending it.
+//
+// The message never distinguishes unknown from expired from reused: this
+// endpoint is unauthenticated, and the caller should learn only that it failed.
+func (app *application) endRefreshSession(c *gin.Context) {
+	http.SetCookie(c.Writer, app.auth.GetExpiredRefreshCookie(""))
+	app.errorJSON(c, errors.New("Unauthorized"), http.StatusUnauthorized)
+}
+
 func (app *application) RefreshToken(c *gin.Context) {
 	refreshToken, err := c.Cookie(app.auth.CookieName)
 	if err != nil {
@@ -387,34 +397,83 @@ func (app *application) RefreshToken(c *gin.Context) {
 
 	claims := &Claims{}
 	_, err = jwt.ParseWithClaims(refreshToken, claims, func(token *jwt.Token) (any, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
 		return []byte(app.auth.Secret), nil
 	})
-
 	if err != nil {
-		app.errorJSON(c, errors.New("Unauthorized"), http.StatusUnauthorized)
+		app.endRefreshSession(c)
 		return
 	}
 
-	userID, err := strconv.Atoi(claims.Subject)
-	if err != nil {
-		app.errorJSON(c, errors.New("Unknown user"), http.StatusUnauthorized)
+	// Access tokens are issued without an ID. Requiring one is what stops an
+	// access token being presented here and exchanged for a fresh pair.
+	if claims.ID == "" {
+		app.endRefreshSession(c)
 		return
 	}
 
-	user, err := app.DB.GetUserByID(c, userID)
-	if err != nil {
-		app.errorJSON(c, errors.New("Unknown user"), http.StatusUnauthorized)
+	row, err := app.DB.GetRefreshToken(c, claims.ID)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		app.errorJSON(c, errors.New("Could not refresh"), http.StatusInternalServerError)
 		return
 	}
 
-	u := jwtUser{
-		ID:       user.ID,
-		Username: user.Username,
+	state := refresh.State{}
+	if row != nil {
+		// Only asked when the row is revoked, since that is the only case where
+		// the answer changes anything — and it is what tells a rotated token
+		// apart from a session that has ended.
+		familyActive := false
+		if row.RevokedAt != nil {
+			familyActive, err = app.DB.FamilyHasActiveToken(c, row.FamilyID)
+			if err != nil {
+				app.errorJSON(c, errors.New("Could not refresh"), http.StatusInternalServerError)
+				return
+			}
+		}
+
+		state = refresh.State{
+			Found:        true,
+			ExpiresAt:    row.ExpiresAt,
+			RevokedAt:    row.RevokedAt,
+			FamilyActive: familyActive,
+		}
 	}
 
-	tokenPairs, err := app.auth.GenerateTokenPair(&u)
+	switch refresh.Decide(state, time.Now(), app.RefreshGrace) {
+	case refresh.ReuseDetected:
+		// Two parties presented the same consumed token while the session is
+		// still live, so a copy leaked. Ending the whole chain is the only safe
+		// response — and it logs the real user out too, which is the point:
+		// they need to notice.
+		_ = app.DB.RevokeRefreshFamily(c, row.FamilyID)
+		app.endRefreshSession(c)
+		return
+	case refresh.RejectUnknown, refresh.RejectExpired, refresh.RejectRevoked:
+		app.endRefreshSession(c)
+		return
+	}
+
+	// The user, from the row rather than the token's Subject: one source of
+	// truth, and the row is the one that can be revoked.
+	user, err := app.DB.GetUserByID(c, row.UserID)
 	if err != nil {
-		app.errorJSON(c, errors.New("Error generating token pair"), http.StatusInternalServerError)
+		app.endRefreshSession(c)
+		return
+	}
+
+	// A no-op on the grace path, where the row is already revoked — the
+	// repository's `revoked_at IS NULL` guard is what makes that safe.
+	if err := app.DB.RevokeRefreshToken(c, row.JTI); err != nil {
+		app.errorJSON(c, errors.New("Could not refresh"), http.StatusInternalServerError)
+		return
+	}
+
+	tokenPairs, err := app.issueSession(c, user, row.FamilyID)
+	if err != nil {
+		app.errorJSON(c, errors.New("Could not refresh"), http.StatusInternalServerError)
 		return
 	}
 
@@ -458,8 +517,32 @@ func (app *application) GetUserByID(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+// Logout revokes the session server-side. Before this, it only cleared the
+// cookie in the caller's browser and the refresh token stayed valid for its
+// full 24 hours — so "log out" meant "please forget this", not "this no longer
+// works".
+//
+// Best effort by design: it always returns 200, even with a missing or
+// unparseable cookie. Logout must not be able to fail, and telling an
+// unauthenticated caller that their token was invalid is information this
+// endpoint has no business handing out.
 func (app *application) Logout(c *gin.Context) {
-	c.SetCookie("__Host-refresh_token", "", -1, "/", "", true, true)
+	if cookie, err := c.Cookie(app.auth.CookieName); err == nil {
+		claims := &Claims{}
+		_, parseErr := jwt.ParseWithClaims(cookie, claims, func(token *jwt.Token) (any, error) {
+			return []byte(app.auth.Secret), nil
+		})
+
+		if parseErr == nil && claims.ID != "" {
+			// The whole family, not just this token: logging out ends the
+			// session, and the session is the rotation chain.
+			if row, err := app.DB.GetRefreshToken(c, claims.ID); err == nil && row != nil {
+				_ = app.DB.RevokeRefreshFamily(c, row.FamilyID)
+			}
+		}
+	}
+
+	http.SetCookie(c.Writer, app.auth.GetExpiredRefreshCookie(""))
 	c.JSON(http.StatusOK, gin.H{"message": "Logged out"})
 }
 

@@ -34,6 +34,26 @@ func (m *PostgresDBRepo) RevokeRefreshToken(ctx context.Context, jti string) err
 		Update("revoked_at", time.Now()).Error
 }
 
+// FamilyHasActiveToken reports whether any token in the family is still alive.
+//
+// This is what separates a rotated token from an ended session. Rotation always
+// leaves a live successor, so a replay of the consumed token inside the grace
+// window is a second browser tab. Logout and reuse detection revoke everything,
+// so nothing is alive and the grace window must not resurrect it.
+func (m *PostgresDBRepo) FamilyHasActiveToken(ctx context.Context, familyID string) (bool, error) {
+	var live int64
+
+	err := m.GormDB.WithContext(ctx).
+		Model(&models.RefreshToken{}).
+		Where("family_id = ? AND revoked_at IS NULL AND expires_at > ?", familyID, time.Now()).
+		Count(&live).Error
+
+	if err != nil {
+		return false, err
+	}
+	return live > 0, nil
+}
+
 // RevokeRefreshFamily ends a whole session chain. Called on logout, and on
 // reuse detection where two parties holding one token means it leaked.
 func (m *PostgresDBRepo) RevokeRefreshFamily(ctx context.Context, familyID string) error {

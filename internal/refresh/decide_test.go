@@ -42,30 +42,43 @@ func TestDecide(t *testing.T) {
 		},
 		{
 			name:  "revoked long ago is a replay",
-			state: State{Found: true, ExpiresAt: now.Add(time.Hour), RevokedAt: ago(time.Hour)},
+			state: State{Found: true, ExpiresAt: now.Add(time.Hour), RevokedAt: ago(time.Hour), FamilyActive: true},
 			want:  ReuseDetected,
 		},
 		{
 			name:  "revoked a moment ago is a concurrent retry",
-			state: State{Found: true, ExpiresAt: now.Add(time.Hour), RevokedAt: ago(2 * time.Second)},
+			state: State{Found: true, ExpiresAt: now.Add(time.Hour), RevokedAt: ago(2 * time.Second), FamilyActive: true},
 			want:  Accept,
 		},
 		{
 			name:  "revoked exactly at the grace boundary is still benign",
-			state: State{Found: true, ExpiresAt: now.Add(time.Hour), RevokedAt: ago(grace)},
+			state: State{Found: true, ExpiresAt: now.Add(time.Hour), RevokedAt: ago(grace), FamilyActive: true},
 			want:  Accept,
 		},
 		{
 			name:  "one nanosecond past the boundary is a replay",
-			state: State{Found: true, ExpiresAt: now.Add(time.Hour), RevokedAt: ago(grace + time.Nanosecond)},
+			state: State{Found: true, ExpiresAt: now.Add(time.Hour), RevokedAt: ago(grace + time.Nanosecond), FamilyActive: true},
 			want:  ReuseDetected,
 		},
 		{
 			// Replaying a token that can no longer do anything is not worth
 			// burning a user's session over, so expiry wins.
 			name:  "expired and revoked reports expired, not reuse",
-			state: State{Found: true, ExpiresAt: now.Add(-time.Hour), RevokedAt: ago(time.Hour)},
+			state: State{Found: true, ExpiresAt: now.Add(-time.Hour), RevokedAt: ago(time.Hour), FamilyActive: true},
 			want:  RejectExpired,
+		},
+		{
+			// The bug the manual verification caught: after logout the whole
+			// family is revoked, so a replay inside the grace window must not
+			// be mistaken for a concurrent tab and resurrect the session.
+			name:  "revoked moments ago but the family is dead is a logged-out session",
+			state: State{Found: true, ExpiresAt: now.Add(time.Hour), RevokedAt: ago(time.Second)},
+			want:  RejectRevoked,
+		},
+		{
+			name:  "revoked long ago with a dead family is still just over",
+			state: State{Found: true, ExpiresAt: now.Add(time.Hour), RevokedAt: ago(time.Hour)},
+			want:  RejectRevoked,
 		},
 	}
 
@@ -81,7 +94,7 @@ func TestDecide(t *testing.T) {
 // With no grace window every replay is an attack, which is what the manual
 // verification in the plan relies on to test reuse detection without waiting.
 func TestZeroGraceTreatsAnyReplayAsReuse(t *testing.T) {
-	state := State{Found: true, ExpiresAt: now.Add(time.Hour), RevokedAt: ago(time.Nanosecond)}
+	state := State{Found: true, ExpiresAt: now.Add(time.Hour), RevokedAt: ago(time.Nanosecond), FamilyActive: true}
 
 	if got := Decide(state, now, 0); got != ReuseDetected {
 		t.Fatalf("Decide() = %v, want ReuseDetected", got)

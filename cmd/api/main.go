@@ -31,6 +31,9 @@ type application struct {
 	// brute force against one account even from rotating addresses.
 	loginIPLimiter *ratelimit.Limiter
 	loginEmailLimiter *ratelimit.Limiter
+	// How long a just-consumed refresh token is still accepted as a concurrent
+	// retry rather than a replay. Configurable so tests can drive it to zero.
+	RefreshGrace time.Duration
 }
 
 func emailValidator(fl validator.FieldLevel) bool {
@@ -94,6 +97,9 @@ func main() {
 		&app.CookieDomain, "cookie-domain", "localhost", "Cookie domain" )
 	flag.StringVar(
 		&app.Domain, "domain", "localhost", "Domain" )
+	flag.DurationVar(
+		&app.RefreshGrace, "refresh-grace", 10*time.Second,
+		"How long a consumed refresh token is still accepted, for concurrent tabs")
 	flag.Parse()
 
 	// connect to database

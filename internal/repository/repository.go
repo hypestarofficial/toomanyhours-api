@@ -34,4 +34,11 @@ type DatabaseRepo interface {
 	UpdateUserGame(ctx context.Context, userID, gameID int, upd models.UserGameUpdate) (*models.UserGame, error)
 	DeleteUserGame(ctx context.Context, userID, gameID int) error
 	GamesExist(ctx context.Context, gameIDs []int) (bool, error)
+
+	// Refresh tokens
+	CreateRefreshToken(ctx context.Context, token *models.RefreshToken) error
+	GetRefreshToken(ctx context.Context, jti string) (*models.RefreshToken, error)
+	RevokeRefreshToken(ctx context.Context, jti string) error
+	RevokeRefreshFamily(ctx context.Context, familyID string) error
+	DeleteExpiredRefreshTokens(ctx context.Context) error
 }

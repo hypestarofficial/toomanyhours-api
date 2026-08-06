@@ -36,18 +36,24 @@ func TestCategory(t *testing.T) {
 }
 
 func TestRating(t *testing.T) {
-	ptr := func(n int) *int { return &n }
+	ptr := func(f float64) *float64 { return &f }
 
 	tests := []struct {
 		name    string
-		input   *int
+		input   *float64
 		wantErr error
 	}{
 		{"nil is unrated and valid", nil, nil},
-		{"one", ptr(1), nil},
-		{"ten", ptr(10), nil},
+		{"the lowest half step", ptr(0.5), nil},
+		{"a whole star", ptr(7), nil},
+		{"a half step", ptr(6.5), nil},
+		{"the top of the scale", ptr(10), nil},
+		// The reason this function is not just a range check. A quarter step is
+		// inside the range and still not a rating anything can produce.
+		{"a quarter step", ptr(6.25), ErrRange},
+		{"a tenth", ptr(0.3), ErrRange},
 		{"zero is not a rating", ptr(0), ErrRange},
-		{"eleven", ptr(11), ErrRange},
+		{"above the scale", ptr(10.5), ErrRange},
 		{"negative", ptr(-3), ErrRange},
 	}
 

@@ -137,9 +137,9 @@ func (app *application) PatchMyGame(c *gin.Context) {
 	}
 
 	var requestPayload struct {
-		Category *string `json:"category"`
-		Rating   *int    `json:"rating"`
-		Review   *string `json:"review"`
+		Category *string  `json:"category"`
+		Rating   *float64 `json:"rating"`
+		Review   *string  `json:"review"`
 	}
 
 	if err := c.ShouldBindJSON(&requestPayload); err != nil {

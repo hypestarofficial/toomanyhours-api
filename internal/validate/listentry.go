@@ -2,6 +2,7 @@ package validate
 
 import (
 	"errors"
+	"math"
 	"strings"
 	"unicode/utf8"
 )
@@ -64,18 +65,26 @@ func RatingAllowed(category string) bool {
 	return category == CategoryFinished
 }
 
-// Rating validates an optional 1-10 score. A nil rating is valid and means
-// unrated: VISION.md keeps rating optional because a list with a few scored
-// standouts reads better than one where every entry has a dutiful number.
+// Rating validates an optional half-step score between 0.5 and 10. A nil rating
+// is valid and means unrated: VISION.md keeps rating optional because a list
+// with a few scored standouts reads better than one where every entry has a
+// dutiful number.
 //
 // Zero is rejected here. The API uses 0 as the "clear my rating" sentinel, and
 // the handler converts it before validating — so a 0 reaching this function is
 // a bug rather than a request.
-func Rating(raw *int) error {
+func Rating(raw *float64) error {
 	if raw == nil {
 		return nil
 	}
-	if *raw < 1 || *raw > 10 {
+	if *raw < 0.5 || *raw > 10 {
+		return ErrRange
+	}
+	// Half-steps only, matching the database CHECK. Doubling is exact for every
+	// value the control can produce — halves are the one fraction binary
+	// floating point always represents exactly — so this is a precise test
+	// rather than one needing a tolerance.
+	if doubled := *raw * 2; doubled != math.Trunc(doubled) {
 		return ErrRange
 	}
 	return nil

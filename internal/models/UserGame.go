@@ -17,10 +17,12 @@ type UserGame struct {
 	GameID   int    `json:"gameId"`
 	Category string `json:"category"`
 	// Pointers because absent and zero are different: no rating is not a
-	// rating of nothing.
-	Rating *int    `json:"rating"`
-	Review *string `json:"review"`
-	Hours  *int    `json:"hours"`
+	// rating of nothing. float64 because the scale has half-steps — 6.5 stars
+	// is a rating of 6.5, stored in a numeric(3,1) column since migration
+	// 000005.
+	Rating *float64 `json:"rating"`
+	Review *string  `json:"review"`
+	Hours  *int     `json:"hours"`
 	// Populated on reads via Preload. The frontend renders the game's title,
 	// cover and genres from here.
 	Game      *Game     `json:"game,omitempty"`
@@ -38,7 +40,7 @@ type UserGame struct {
 type UserGameUpdate struct {
 	Category  *string
 	SetRating bool
-	Rating    *int
+	Rating    *float64
 	SetReview bool
 	Review    *string
 }

@@ -107,3 +107,64 @@ func TestReview(t *testing.T) {
 		}
 	})
 }
+
+func TestResultingCategory(t *testing.T) {
+	ptr := func(s string) *string { return &s }
+
+	tests := []struct {
+		name    string
+		current string
+		patch   *string
+		want    string
+	}{
+		{"no patch keeps the current category", "finished", nil, "finished"},
+		{"a patch wins over the current category", "currently_playing", ptr("finished"), "finished"},
+		{"moving out of finished", "finished", ptr("want_to_play"), "want_to_play"},
+		{"a patch that changes nothing", "finished", ptr("finished"), "finished"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := ResultingCategory(tc.current, tc.patch); got != tc.want {
+				t.Fatalf("ResultingCategory(%q, %v) = %q, want %q", tc.current, tc.patch, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestRatingAllowed(t *testing.T) {
+	tests := []struct {
+		category string
+		want     bool
+	}{
+		{"finished", true},
+		{"currently_playing", false},
+		{"want_to_play", false},
+		{"", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.category, func(t *testing.T) {
+			if got := RatingAllowed(tc.category); got != tc.want {
+				t.Fatalf("RatingAllowed(%q) = %v, want %v", tc.category, got, tc.want)
+			}
+		})
+	}
+}
+
+// The flow the rule exists to allow, and the one that breaks if somebody later
+// "simplifies" the handler to check the entry's current category. Finishing a
+// game moves it and rates it in a single request, so at the moment the request
+// is judged the row is still currently_playing.
+func TestFinishInOneRequestIsAllowed(t *testing.T) {
+	finished := "finished"
+
+	if !RatingAllowed(ResultingCategory("currently_playing", &finished)) {
+		t.Fatal("finishing a currently_playing entry with a rating must be allowed")
+	}
+
+	// And the inverse: the same entry without the category change must not be.
+	if RatingAllowed(ResultingCategory("currently_playing", nil)) {
+		t.Fatal("rating a currently_playing entry without finishing it must be rejected")
+	}
+}

@@ -14,11 +14,16 @@ var ErrRange = errors.New("out of range")
 // the product aims at, while still bounding what one row can hold.
 const reviewMaxRunes = 2000
 
+// CategoryFinished is the one category that may hold a rating or a review.
+// Exported because the rule below turns on this exact string; a second spelling
+// of it is how the map and the rule would drift apart.
+const CategoryFinished = "finished"
+
 // categories are the stored values. They are snake_case because the database
 // CHECK constraint is the source of truth and SQL convention wins; the
 // frontend enum matches rather than mapping between two spellings.
 var categories = map[string]struct{}{
-	"finished":          {},
+	CategoryFinished:    {},
 	"currently_playing": {},
 	"want_to_play":      {},
 }
@@ -30,6 +35,33 @@ func Category(raw string) (string, error) {
 		return "", ErrFormat
 	}
 	return category, nil
+}
+
+// ResultingCategory returns the category an entry will have once a patch is
+// applied: the patched value when the request names one, otherwise the value
+// the row already holds.
+//
+// The distinction is the whole rule. Finishing a game moves it and rates it in
+// one request, so when that request is judged the row is still
+// currently_playing — checking the current category would reject the single
+// flow this exists to allow.
+func ResultingCategory(current string, patch *string) string {
+	if patch != nil {
+		return *patch
+	}
+	return current
+}
+
+// RatingAllowed reports whether a rating or review may be written for an entry
+// in this category.
+//
+// Gates writes only. A rating already stored on a row is kept when that row
+// leaves finished — category is a column precisely so a move preserves it, and
+// replaying a game should not cost you the review you wrote about it. That is
+// also why this rule cannot be a Postgres CHECK constraint: the constraint
+// would reject the move.
+func RatingAllowed(category string) bool {
+	return category == CategoryFinished
 }
 
 // Rating validates an optional 1-10 score. A nil rating is valid and means

@@ -43,6 +43,11 @@ func (app *application) routes() *gin.Engine {
 	// no account.
 	router.GET("/profiles/:username", app.GetProfile)
 
+	// Availability for the register and rename forms. Anonymous for the same
+	// reason as profiles — the register form has no token — and rate limited
+	// because it is unauthenticated and touches the database.
+	router.GET("/usernames/:username", app.CheckUsername)
+
 	// Authorized Routes
 	auth := router.Group("/")
 	// Check Auth Header for valid token

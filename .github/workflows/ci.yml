@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    # The suite runs against a real Postgres: the things worth proving in
+    # cmd/api are half SQL. Same version as docker-compose.yml — a version
+    # difference between CI and dev generates bugs rather than saving anything.
+    services:
+      postgres:
+        image: postgres:14.5
+        env:
+          POSTGRES_USER: toomanyhours
+          POSTGRES_PASSWORD: toomanyhours
+          POSTGRES_DB: toomanyhours
+        ports:
+          - 5432:5432
+        # Without a health check the job races the container and the first
+        # connection fails. TestMain would then log.Fatal, because CI is set —
+        # loudly, but for the wrong reason.
+        options: >-
+          --health-cmd "pg_isready -U toomanyhours"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    # Only what the tests read. .env is gitignored and absent here; TestMain
+    # ignores a missing one and reads os.Getenv either way.
+    #
+    # DB_PORT is 5432, not the 5433 used locally: compose maps the host port,
+    # a service container does not. The suite derives toomanyhours_test from
+    # DB_NAME and creates it on the runner.
+    env:
+      DB_USER: toomanyhours
+      DB_PASSWORD: toomanyhours
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_NAME: toomanyhours
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # From go.mod rather than a literal here: two sources of truth for the
+      # Go version drift silently.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - run: go build ./...
+
+      - run: go vet ./...
+
+      # -count=1 disables the test cache. A fresh runner has none, but the
+      # flag says the run is unconditional rather than relying on that.
+      - run: go test ./... -count=1

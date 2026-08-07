@@ -41,6 +41,19 @@ func TestMain(m *testing.M) {
 	_ = godotenv.Load("../../.env")
 
 	if err := setupTestDB(); err != nil {
+		// On a laptop with Docker stopped, skipping is right: go test ./...
+		// should work on a clean checkout. Under CI it is exactly wrong — a
+		// mistyped service name or a container that never became healthy
+		// would produce a green build having proved nothing, which is the
+		// specific hole CI exists to close.
+		//
+		// GitHub Actions sets CI=true on every runner, so nothing needs
+		// configuring. Note that other tools set it too: anything exporting
+		// CI locally will turn a skip into a hard failure, which is the
+		// intended reading of the variable.
+		if os.Getenv("CI") != "" {
+			log.Fatalf("CI is set, so the test database is required: %v", err)
+		}
 		dbUnavailable = err.Error()
 	}
 

@@ -261,6 +261,41 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
 
+  /usernames/{username}:
+    get:
+      operationId: checkUsername
+      summary: Whether a username could be registered
+      description: >-
+        Advisory only. Two people can claim a name between this answer and a
+        submit, so the unique index stays the authority and registration still
+        answers 409. Anonymous, because the register form has no token, and
+        rate limited because it is unauthenticated and touches the database.
+        Always 200 unless rate limited — "taken" is an answer, not a failure.
+      tags: [Usernames]
+      security: []   # deliberately public
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema: { type: string }
+          description: Normalised before checking; case is irrelevant.
+      responses:
+        '200':
+          description: The verdict
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UsernameAvailability' }
+        '429':
+          description: Too many checks from this address
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          description: Lookup failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
   /me:
     get:
       operationId: getMe
@@ -701,6 +736,20 @@ components:
       properties:
         username: { type: string, minLength: 3, maxLength: 16 }
         visibility: { type: string, enum: [public, private] }
+
+    UsernameAvailability:
+      type: object
+      required: [available, reason]
+      properties:
+        available:
+          type: boolean
+        reason:
+          type: string
+          description: >-
+            Empty when available. `taken` means a row exists, `reserved` a name
+            the product keeps, `invalid` a length or charset failure, and
+            `not_allowed` a profanity rejection.
+          enum: ["", taken, reserved, invalid, not_allowed]
 
     PublicProfile:
       type: object

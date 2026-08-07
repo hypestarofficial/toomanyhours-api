@@ -56,6 +56,10 @@ func newTestApp(t *testing.T) (*application, *gorm.DB) {
 		RefreshGrace:      10 * time.Second,
 		loginIPLimiter:    ratelimit.New(20, 15*time.Minute),
 		loginEmailLimiter: ratelimit.New(5, time.Minute),
+		// Every limiter the app constructs in main() needs one here too: the
+		// handlers call Check on it unconditionally, and a nil *Limiter panics
+		// into a 500 with an empty body, which reads like a database failure.
+		usernameCheckLimiter: ratelimit.New(60, time.Minute),
 		// Non-nil so POST /me/games gets past its configuration check. Every
 		// igdbId these tests post is already in the catalog, so `missing` is
 		// empty and no request is ever made — the unroutable address is there

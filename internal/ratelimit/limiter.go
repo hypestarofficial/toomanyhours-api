@@ -52,14 +52,14 @@ func (l *Limiter) Check(key string) (ok bool, retryAfter time.Duration) {
 	return false, l.window - now.Sub(times[0])
 }
 
-// RecordFailure notes a failed attempt for key.
+// Record notes one attempt against key.
 //
-// A key already at the limit is deliberately left alone. If further failures
+// A key already at the limit is deliberately left alone. If further attempts
 // appended, an attacker who knows someone's email could hold that account
 // blocked indefinitely by keeping up a trickle of guesses. Leaving it means the
-// block always expires one window after the failures that caused it. It also
+// block always expires one window after the attempts that caused it. It also
 // bounds each key's slice at max entries.
-func (l *Limiter) RecordFailure(key string) {
+func (l *Limiter) Record(key string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -72,6 +72,13 @@ func (l *Limiter) RecordFailure(key string) {
 	}
 	l.failures[key] = append(times, now)
 }
+
+// RecordFailure notes a failed attempt for key.
+//
+// The login limiters count only failures, which is where this name comes from.
+// Record is the same counter under a name that does not imply one, for callers
+// that limit every request rather than every failure.
+func (l *Limiter) RecordFailure(key string) { l.Record(key) }
 
 // Reset clears a key's history. Called after a successful login, so a user who
 // fumbled their password three times is not punished once they get in.

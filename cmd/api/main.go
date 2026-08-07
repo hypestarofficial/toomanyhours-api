@@ -41,6 +41,10 @@ type application struct {
 	// brute force against one account even from rotating addresses.
 	loginIPLimiter    *ratelimit.Limiter
 	loginEmailLimiter *ratelimit.Limiter
+	// Availability checks are unauthenticated and hit the database on a
+	// debounced keystroke. The frontend's debounce is a courtesy this endpoint
+	// cannot rely on.
+	usernameCheckLimiter *ratelimit.Limiter
 	// How long a just-consumed refresh token is still accepted as a concurrent
 	// retry rather than a replay. Configurable so tests can drive it to zero.
 	RefreshGrace     time.Duration
@@ -170,6 +174,10 @@ func main() {
 	// distributed attacker at 300 guesses an hour, which against bcrypt is
 	// nothing.
 	app.loginEmailLimiter = ratelimit.New(5, time.Minute)
+
+	// 60 a minute per address. A person typing a name produces a handful;
+	// this is generous for them and still caps a script.
+	app.usernameCheckLimiter = ratelimit.New(60, time.Minute)
 
 	log.Printf("starting tooManyHours API server on %s:%s", app.Domain, port)
 	log.Printf("version: %s", apiVersion)

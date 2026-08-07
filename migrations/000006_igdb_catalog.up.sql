@@ -102,56 +102,68 @@ INSERT INTO public.tags (facet, igdb_id, name) VALUES ('theme', 38, 'Open world'
 INSERT INTO public.tags (facet, igdb_id, name) VALUES ('theme', 39, 'Warfare');
 INSERT INTO public.tags (facet, igdb_id, name) VALUES ('theme', 43, 'Mystery');
 
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 730, id FROM public.tags WHERE facet = 'genre' AND igdb_id = 5;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 730, id FROM public.tags WHERE facet = 'genre' AND igdb_id = 24;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 730, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 1;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 730, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 39;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 730, id FROM public.tags WHERE facet = 'game_mode' AND igdb_id = 1;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 730, id FROM public.tags WHERE facet = 'game_mode' AND igdb_id = 2;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 292030, id FROM public.tags WHERE facet = 'genre' AND igdb_id = 12;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 292030, id FROM public.tags WHERE facet = 'genre' AND igdb_id = 31;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 292030, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 1;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 292030, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 17;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 292030, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 38;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 292030, id FROM public.tags WHERE facet = 'game_mode' AND igdb_id = 1;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 377160, id FROM public.tags WHERE facet = 'genre' AND igdb_id = 5;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 377160, id FROM public.tags WHERE facet = 'genre' AND igdb_id = 12;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 377160, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 1;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 377160, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 18;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 377160, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 21;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 377160, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 23;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 377160, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 33;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 377160, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 38;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 377160, id FROM public.tags WHERE facet = 'game_mode' AND igdb_id = 1;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 489830, id FROM public.tags WHERE facet = 'genre' AND igdb_id = 12;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 489830, id FROM public.tags WHERE facet = 'genre' AND igdb_id = 31;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 489830, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 1;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 489830, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 17;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 489830, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 22;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 489830, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 33;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 489830, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 38;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 489830, id FROM public.tags WHERE facet = 'game_mode' AND igdb_id = 1;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 1174180, id FROM public.tags WHERE facet = 'genre' AND igdb_id = 5;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 1174180, id FROM public.tags WHERE facet = 'genre' AND igdb_id = 12;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 1174180, id FROM public.tags WHERE facet = 'genre' AND igdb_id = 31;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 1174180, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 1;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 1174180, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 31;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 1174180, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 38;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 1174180, id FROM public.tags WHERE facet = 'game_mode' AND igdb_id = 1;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 1174180, id FROM public.tags WHERE facet = 'game_mode' AND igdb_id = 2;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 1174180, id FROM public.tags WHERE facet = 'game_mode' AND igdb_id = 3;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 1395520, id FROM public.tags WHERE facet = 'genre' AND igdb_id = 9;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 1395520, id FROM public.tags WHERE facet = 'genre' AND igdb_id = 31;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 1395520, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 43;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 1395520, id FROM public.tags WHERE facet = 'game_mode' AND igdb_id = 1;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 3240220, id FROM public.tags WHERE facet = 'genre' AND igdb_id = 5;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 3240220, id FROM public.tags WHERE facet = 'genre' AND igdb_id = 10;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 3240220, id FROM public.tags WHERE facet = 'genre' AND igdb_id = 31;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 3240220, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 1;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 3240220, id FROM public.tags WHERE facet = 'theme' AND igdb_id = 38;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 3240220, id FROM public.tags WHERE facet = 'game_mode' AND igdb_id = 1;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 3240220, id FROM public.tags WHERE facet = 'game_mode' AND igdb_id = 2;
-INSERT INTO public.games_tags (game_id, tag_id) SELECT 3240220, id FROM public.tags WHERE facet = 'game_mode' AND igdb_id = 3;
+-- Joined through public.games rather than selecting a literal game id.
+--
+-- These were `SELECT 730, id FROM tags WHERE ...`, which produces a row
+-- whenever the *tag* exists — whether or not the game does. That worked on the
+-- only database that had ever run it, because the seven games were already
+-- there from sql/seed.sql. On an empty database the UPDATEs above match
+-- nothing, games is empty, and the first insert dies on
+-- games_tags_game_id_fkey: migrations could not be applied to a fresh
+-- database at all, which would have surfaced on the first real deployment.
+--
+-- Joining makes each statement a no-op when its game is absent and produce
+-- exactly the same 50 rows when it is present.
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 730 AND t.facet = 'genre' AND t.igdb_id = 5;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 730 AND t.facet = 'genre' AND t.igdb_id = 24;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 730 AND t.facet = 'theme' AND t.igdb_id = 1;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 730 AND t.facet = 'theme' AND t.igdb_id = 39;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 730 AND t.facet = 'game_mode' AND t.igdb_id = 1;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 730 AND t.facet = 'game_mode' AND t.igdb_id = 2;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 292030 AND t.facet = 'genre' AND t.igdb_id = 12;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 292030 AND t.facet = 'genre' AND t.igdb_id = 31;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 292030 AND t.facet = 'theme' AND t.igdb_id = 1;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 292030 AND t.facet = 'theme' AND t.igdb_id = 17;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 292030 AND t.facet = 'theme' AND t.igdb_id = 38;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 292030 AND t.facet = 'game_mode' AND t.igdb_id = 1;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 377160 AND t.facet = 'genre' AND t.igdb_id = 5;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 377160 AND t.facet = 'genre' AND t.igdb_id = 12;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 377160 AND t.facet = 'theme' AND t.igdb_id = 1;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 377160 AND t.facet = 'theme' AND t.igdb_id = 18;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 377160 AND t.facet = 'theme' AND t.igdb_id = 21;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 377160 AND t.facet = 'theme' AND t.igdb_id = 23;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 377160 AND t.facet = 'theme' AND t.igdb_id = 33;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 377160 AND t.facet = 'theme' AND t.igdb_id = 38;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 377160 AND t.facet = 'game_mode' AND t.igdb_id = 1;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 489830 AND t.facet = 'genre' AND t.igdb_id = 12;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 489830 AND t.facet = 'genre' AND t.igdb_id = 31;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 489830 AND t.facet = 'theme' AND t.igdb_id = 1;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 489830 AND t.facet = 'theme' AND t.igdb_id = 17;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 489830 AND t.facet = 'theme' AND t.igdb_id = 22;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 489830 AND t.facet = 'theme' AND t.igdb_id = 33;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 489830 AND t.facet = 'theme' AND t.igdb_id = 38;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 489830 AND t.facet = 'game_mode' AND t.igdb_id = 1;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 1174180 AND t.facet = 'genre' AND t.igdb_id = 5;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 1174180 AND t.facet = 'genre' AND t.igdb_id = 12;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 1174180 AND t.facet = 'genre' AND t.igdb_id = 31;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 1174180 AND t.facet = 'theme' AND t.igdb_id = 1;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 1174180 AND t.facet = 'theme' AND t.igdb_id = 31;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 1174180 AND t.facet = 'theme' AND t.igdb_id = 38;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 1174180 AND t.facet = 'game_mode' AND t.igdb_id = 1;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 1174180 AND t.facet = 'game_mode' AND t.igdb_id = 2;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 1174180 AND t.facet = 'game_mode' AND t.igdb_id = 3;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 1395520 AND t.facet = 'genre' AND t.igdb_id = 9;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 1395520 AND t.facet = 'genre' AND t.igdb_id = 31;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 1395520 AND t.facet = 'theme' AND t.igdb_id = 43;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 1395520 AND t.facet = 'game_mode' AND t.igdb_id = 1;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 3240220 AND t.facet = 'genre' AND t.igdb_id = 5;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 3240220 AND t.facet = 'genre' AND t.igdb_id = 10;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 3240220 AND t.facet = 'genre' AND t.igdb_id = 31;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 3240220 AND t.facet = 'theme' AND t.igdb_id = 1;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 3240220 AND t.facet = 'theme' AND t.igdb_id = 38;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 3240220 AND t.facet = 'game_mode' AND t.igdb_id = 1;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 3240220 AND t.facet = 'game_mode' AND t.igdb_id = 2;
+INSERT INTO public.games_tags (game_id, tag_id) SELECT g.id, t.id FROM public.games g, public.tags t WHERE g.id = 3240220 AND t.facet = 'game_mode' AND t.igdb_id = 3;
 
 -- Superseded by tags. Their 15 seeded rows were test data.
 DROP TABLE public.games_genres;

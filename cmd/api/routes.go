@@ -59,7 +59,7 @@ func (app *application) routes() *gin.Engine {
 
 		// My list
 		auth.GET("/me/games", app.GetMyGames)
-		auth.POST("/me/games", app.PostMyGames)
+		auth.POST("/me/games", app.PostMyGame)
 		auth.PATCH("/me/games/:gameId", app.PatchMyGame)
 		auth.DELETE("/me/games/:gameId", app.DeleteMyGame)
 

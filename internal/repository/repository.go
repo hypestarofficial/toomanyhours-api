@@ -27,7 +27,7 @@ type DatabaseRepo interface {
 
 	// User Games (the list)
 	GetUserGames(ctx context.Context, userID int) ([]*models.UserGame, error)
-	AddUserGames(ctx context.Context, userID int, gameIDs []int, category string) ([]*models.UserGame, error)
+	AddUserGame(ctx context.Context, userID, gameID int, category string, rating *float64, review *string) (*models.UserGame, error)
 	GetUserGameCategory(ctx context.Context, userID, gameID int) (string, error)
 	UpdateUserGame(ctx context.Context, userID, gameID int, upd models.UserGameUpdate) (*models.UserGame, error)
 	DeleteUserGame(ctx context.Context, userID, gameID int) error

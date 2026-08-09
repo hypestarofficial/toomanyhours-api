@@ -121,7 +121,7 @@ func TestPostDuplicateGameIs409(t *testing.T) {
 	mine, _, myGame, _ := twoUsers(t, tx)
 
 	w := do(t, app, http.MethodPost, "/me/games",
-		map[string]any{"igdbIds": []int{myGame.IGDBID}, "category": "want_to_play"},
+		map[string]any{"igdbId": myGame.IGDBID, "category": "want_to_play"},
 		withAuth(accessToken(t, app, mine)))
 
 	// The unique constraint is the authority, surfaced as
@@ -130,23 +130,133 @@ func TestPostDuplicateGameIs409(t *testing.T) {
 	mustStatus(t, w, http.StatusConflict)
 }
 
-func TestPostBatchWithOneDuplicateRejectsAll(t *testing.T) {
+func TestPostCreatesEntryWithNeitherRatingNorReview(t *testing.T) {
 	app, tx := newTestApp(t)
-	mine, _, myGame, _ := twoUsers(t, tx)
-	fresh := createGame(t, tx, 25076, "Red Dead Redemption 2")
+	user := createUser(t, tx, "player", "public")
+	game := createGame(t, tx, 1942, "The Witcher 3")
 
 	w := do(t, app, http.MethodPost, "/me/games",
-		map[string]any{"igdbIds": []int{fresh.IGDBID, myGame.IGDBID}, "category": "want_to_play"},
-		withAuth(accessToken(t, app, mine)))
+		map[string]any{"igdbId": game.IGDBID, "category": "want_to_play"},
+		withAuth(accessToken(t, app, user)))
 
-	mustStatus(t, w, http.StatusConflict)
+	mustStatus(t, w, http.StatusCreated)
 
-	// All or nothing is the contract, not an accident of one multi-row INSERT.
-	var count int64
-	tx.Model(&models.UserGame{}).Where("user_id = ? AND game_id = ?", mine.ID, fresh.ID).Count(&count)
-	if count != 0 {
-		t.Errorf("the non-duplicate game was added anyway (count = %d)", count)
+	var entry models.UserGame
+	if err := tx.Where("user_id = ? AND game_id = ?", user.ID, game.ID).First(&entry).Error; err != nil {
+		t.Fatalf("read entry: %v", err)
 	}
+	if entry.Rating != nil || entry.Review != nil {
+		t.Errorf("rating = %v, review = %v, want both nil", entry.Rating, entry.Review)
+	}
+}
+
+func TestPostFinishedCarriesRatingAndReview(t *testing.T) {
+	app, tx := newTestApp(t)
+	user := createUser(t, tx, "player", "public")
+	game := createGame(t, tx, 1942, "The Witcher 3")
+
+	w := do(t, app, http.MethodPost, "/me/games",
+		map[string]any{"igdbId": game.IGDBID, "category": "finished", "rating": 8.5, "review": "  Great  "},
+		withAuth(accessToken(t, app, user)))
+
+	mustStatus(t, w, http.StatusCreated)
+
+	var entry models.UserGame
+	if err := tx.Where("user_id = ? AND game_id = ?", user.ID, game.ID).First(&entry).Error; err != nil {
+		t.Fatalf("read entry: %v", err)
+	}
+	if entry.Rating == nil || *entry.Rating != 8.5 {
+		t.Errorf("rating = %v, want 8.5", entry.Rating)
+	}
+	// validate.Review trims, so "cleared" has one representation rather than
+	// two that every query would have to remember to check for.
+	if entry.Review == nil || *entry.Review != "Great" {
+		t.Errorf("review = %v, want \"Great\"", entry.Review)
+	}
+}
+
+// The response is one object, not an array. A consumer that kept indexing
+// into [0] must fail loudly rather than read a character out of a string.
+func TestPostReturnsOneObjectNotAnArray(t *testing.T) {
+	app, tx := newTestApp(t)
+	user := createUser(t, tx, "player", "public")
+	game := createGame(t, tx, 1942, "The Witcher 3")
+
+	w := do(t, app, http.MethodPost, "/me/games",
+		map[string]any{"igdbId": game.IGDBID, "category": "finished"},
+		withAuth(accessToken(t, app, user)))
+
+	mustStatus(t, w, http.StatusCreated)
+
+	var entry struct {
+		GameID   int    `json:"gameId"`
+		Category string `json:"category"`
+	}
+	decodeJSON(t, w, &entry)
+
+	if entry.GameID != game.ID || entry.Category != "finished" {
+		t.Errorf("entry = %+v, want game %d finished", entry, game.ID)
+	}
+}
+
+func TestPostRatingOnWantToPlayIs400(t *testing.T) {
+	app, tx := newTestApp(t)
+	user := createUser(t, tx, "player", "public")
+	game := createGame(t, tx, 1942, "The Witcher 3")
+
+	w := do(t, app, http.MethodPost, "/me/games",
+		map[string]any{"igdbId": game.IGDBID, "category": "want_to_play", "rating": 8.5},
+		withAuth(accessToken(t, app, user)))
+
+	mustStatus(t, w, http.StatusBadRequest)
+
+	// Rejected means nothing was written, not written-then-complained-about.
+	var count int64
+	tx.Model(&models.UserGame{}).Where("user_id = ? AND game_id = ?", user.ID, game.ID).Count(&count)
+	if count != 0 {
+		t.Errorf("entry was created anyway (count = %d)", count)
+	}
+}
+
+func TestPostReviewOnCurrentlyPlayingIs400(t *testing.T) {
+	app, tx := newTestApp(t)
+	user := createUser(t, tx, "player", "public")
+	game := createGame(t, tx, 1942, "The Witcher 3")
+
+	w := do(t, app, http.MethodPost, "/me/games",
+		map[string]any{"igdbId": game.IGDBID, "category": "currently_playing", "review": "Fun"},
+		withAuth(accessToken(t, app, user)))
+
+	mustStatus(t, w, http.StatusBadRequest)
+}
+
+// 0 is PATCH's "clear my rating" sentinel. There is nothing to clear on a row
+// that does not exist yet, so POST rejects it — which is what makes a frontend
+// sending 0 for "unrated" fail here rather than silently store nonsense.
+func TestPostZeroRatingIs400(t *testing.T) {
+	app, tx := newTestApp(t)
+	user := createUser(t, tx, "player", "public")
+	game := createGame(t, tx, 1942, "The Witcher 3")
+
+	w := do(t, app, http.MethodPost, "/me/games",
+		map[string]any{"igdbId": game.IGDBID, "category": "finished", "rating": 0},
+		withAuth(accessToken(t, app, user)))
+
+	mustStatus(t, w, http.StatusBadRequest)
+}
+
+func TestPostOffStepRatingIs400(t *testing.T) {
+	app, tx := newTestApp(t)
+	user := createUser(t, tx, "player", "public")
+	game := createGame(t, tx, 1942, "The Witcher 3")
+
+	w := do(t, app, http.MethodPost, "/me/games",
+		map[string]any{"igdbId": game.IGDBID, "category": "finished", "rating": 6.25},
+		withAuth(accessToken(t, app, user)))
+
+	// validate.Rating is the real defence. The column rounds to one decimal
+	// before its CHECK runs, so the constraint would report a confusing 6.3.
+	mustStatus(t, w, http.StatusBadRequest)
 }
 
 func TestPatchCanFinishAndRateInOneRequest(t *testing.T) {

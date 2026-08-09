@@ -49,7 +49,7 @@ func (m *PostgresDBRepo) GetUserGames(ctx context.Context, userID int) ([]*model
 	return entries, nil
 }
 
-// AddUserGames adds games to a user's list.
+// AddUserGame adds one game to a user's list.
 //
 // No ON CONFLICT clause: a game already in the list violates
 // user_games_user_id_game_id_key, which GORM surfaces as gorm.ErrDuplicatedKey
@@ -60,44 +60,50 @@ func (m *PostgresDBRepo) GetUserGames(ctx context.Context, userID int) ([]*model
 // looking first and inserting second leaves a window where another tab inserts
 // in between, and the constraint has no such window.
 //
-// One multi-row INSERT in one transaction, so a single duplicate rejects the
-// whole request. That is the contract, not an accident.
-func (m *PostgresDBRepo) AddUserGames(ctx context.Context, userID int, gameIDs []int, category string) ([]*models.UserGame, error) {
-	rows := make([]*models.UserGame, 0, len(gameIDs))
-	for _, gameID := range gameIDs {
-		rows = append(rows, &models.UserGame{
-			UserID:   userID,
-			GameID:   gameID,
-			Category: category,
-		})
+// Rating and review are written at insert time so a finished game arrives
+// complete. Both may be nil; the handler has already checked that a non-nil
+// one is allowed for this category.
+func (m *PostgresDBRepo) AddUserGame(
+	ctx context.Context,
+	userID, gameID int,
+	category string,
+	rating *float64,
+	review *string,
+) (*models.UserGame, error) {
+	row := &models.UserGame{
+		UserID:   userID,
+		GameID:   gameID,
+		Category: category,
+		Rating:   rating,
+		Review:   review,
 	}
 
-	if err := m.GormDB.WithContext(ctx).Create(&rows).Error; err != nil {
+	if err := m.GormDB.WithContext(ctx).Create(row).Error; err != nil {
 		return nil, err
 	}
 
 	// Re-read so the response carries the game and its genres. The inserted
-	// rows hold only foreign keys.
-	entries := make([]*models.UserGame, 0, len(gameIDs))
+	// row holds only foreign keys.
+	var entry models.UserGame
 
 	result := m.scopedToUser(ctx, userID).
-		Where("game_id IN ?", gameIDs).
+		Where("game_id = ?", gameID).
 		Preload("Game").
 		Preload("Game.Tags").
-		Order("created_at DESC").
-		Find(&entries)
+		First(&entry)
 
 	if result.Error != nil {
 		return nil, result.Error
 	}
 
-	for _, e := range entries {
-		if e.Game != nil {
-			e.Game.SplitTags()
-		}
+	// Preload fills Tags; SplitTags is what turns them into the genres, themes
+	// and game modes the frontend renders. Forgetting it serialises three
+	// empty arrays, which reads as a game with no genres.
+	if entry.Game != nil {
+		entry.Game.SplitTags()
 	}
 
-	return entries, nil
+	return &entry, nil
 }
 
 // GetUserGameCategory returns just the category of one entry.

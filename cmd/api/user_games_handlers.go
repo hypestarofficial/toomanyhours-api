@@ -12,11 +12,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// maxGamesPerRequest bounds a single POST. The modal caps selection at three,
-// but the modal is not what is calling — curl is equally welcome. Without a cap
-// the endpoint's cost is bounded only by the client's good manners.
-const maxGamesPerRequest = 50
-
 // currentUserID reads the id AuthRequired put in the context. Handlers must
 // never take a user id from the body or the path: with /users/:id/games,
 // forgetting one check anywhere lets anyone edit anyone's list by changing an
@@ -62,32 +57,32 @@ func (app *application) GetMyGames(c *gin.Context) {
 	c.JSON(http.StatusOK, entries)
 }
 
-// PostMyGames adds games to the list, or moves them if already present.
-func (app *application) PostMyGames(c *gin.Context) {
+// PostMyGame adds one game to the list.
+//
+// Rating and review are optional and may only be written when the category is
+// finished — the same rule PATCH applies, but simpler here. There is no
+// current category to reconcile, so the posted category *is* the resulting
+// one and validate.ResultingCategory is not involved.
+func (app *application) PostMyGame(c *gin.Context) {
 	userID, ok := app.currentUserID(c)
 	if !ok {
 		return
 	}
 
 	var requestPayload struct {
-		// IGDB ids. Anything the catalog has not seen is imported first. Local
-		// catalog ids are no longer accepted: nothing browses the catalog now
-		// that the picker searches IGDB.
-		IGDBIDs  []int  `json:"igdbIds" binding:"required"`
-		Category string `json:"category" binding:"required"`
+		// An IGDB id. A game the catalog has not seen is imported first. Local
+		// catalog ids are not accepted: nothing browses the catalog now that
+		// the picker searches IGDB.
+		//
+		// binding:"required" rejects 0, which is not a real IGDB id anyway.
+		IGDBID   int      `json:"igdbId" binding:"required"`
+		Category string   `json:"category" binding:"required"`
+		Rating   *float64 `json:"rating"`
+		Review   *string  `json:"review"`
 	}
 
 	if err := c.ShouldBindJSON(&requestPayload); err != nil {
 		app.errorJSON(c, err, http.StatusBadRequest)
-		return
-	}
-
-	if len(requestPayload.IGDBIDs) == 0 {
-		app.errorJSON(c, errors.New("no games given"), http.StatusBadRequest)
-		return
-	}
-	if len(requestPayload.IGDBIDs) > maxGamesPerRequest {
-		app.errorJSON(c, fmt.Errorf("at most %d games per request", maxGamesPerRequest), http.StatusBadRequest)
 		return
 	}
 
@@ -97,31 +92,54 @@ func (app *application) PostMyGames(c *gin.Context) {
 		return
 	}
 
-	// Fetches and stores anything the catalog has not seen, so the rest of this
-	// handler deals only in local ids.
+	// Only when the request actually carries one. An add with neither is the
+	// ordinary case and skips this entirely.
+	if requestPayload.Rating != nil || requestPayload.Review != nil {
+		if !validate.RatingAllowed(category) {
+			app.errorJSON(c, errors.New("only a finished game can be rated or reviewed"), http.StatusBadRequest)
+			return
+		}
+	}
+
+	// Unlike PATCH, 0 is not a clear sentinel here — there is nothing to clear
+	// on a row that does not exist yet. validate.Rating rejects it as out of
+	// range, so a client sending 0 for "unrated" fails loudly instead of
+	// storing something no control can produce.
+	if err := validate.Rating(requestPayload.Rating); err != nil {
+		app.errorJSON(c, fmt.Errorf("rating: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	review, err := validate.Review(requestPayload.Review)
+	if err != nil {
+		app.errorJSON(c, fmt.Errorf("review: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	// Fetches and stores the game if the catalog has not seen it, so the rest
+	// of this handler deals only in local ids.
 	//
-	// No GamesExist check follows: every id here came from GamesByIGDBIDs or
-	// ImportGames, so asking the database to confirm what it just told us would
-	// buy nothing. An id IGDB does not know is already a 404 from here.
-	gameIDs, err := app.importIGDBGames(c, requestPayload.IGDBIDs)
+	// No GamesExist check follows: the id came from GamesByIGDBIDs or
+	// ImportGames, so asking the database to confirm what it just told us
+	// would buy nothing. An id IGDB does not know is already a 404 from here.
+	gameIDs, err := app.importIGDBGames(c, []int{requestPayload.IGDBID})
 	if err != nil {
 		return // importIGDBGames has already answered
 	}
 
-	entries, err := app.DB.AddUserGames(c, userID, gameIDs, category)
+	entry, err := app.DB.AddUserGame(c, userID, gameIDs[0], category, requestPayload.Rating, review)
 	if err != nil {
-		// Adding a game already in the list. Generic on purpose: naming which
-		// one would need a second query on a path the picker makes rare, since
-		// it no longer offers games you already have.
+		// Adding a game already in the list. The picker shows owned games
+		// disabled, so this is reachable only from a stale client.
 		if errors.Is(err, gorm.ErrDuplicatedKey) {
-			app.errorJSON(c, errors.New("One or more of those games is already in your list"), http.StatusConflict)
+			app.errorJSON(c, errors.New("That game is already in your list"), http.StatusConflict)
 			return
 		}
 		app.errorJSON(c, errors.New("Could not add to your list"), http.StatusInternalServerError)
 		return
 	}
 
-	c.JSON(http.StatusCreated, entries)
+	c.JSON(http.StatusCreated, entry)
 }
 
 // PatchMyGame updates one entry's category, rating or review.

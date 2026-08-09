@@ -20,7 +20,7 @@ info:
     There is no document-level `security` default: every protected operation
     declares `BearerAuth` explicitly, so an operation without a `security`
     block is genuinely public.
-  version: 0.2.0
+  version: 0.3.0
 
 servers:
   - url: http://localhost:3130
@@ -399,13 +399,19 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
     post:
-      operationId: addMeGames
-      summary: Add games to the list
+      operationId: addMeGame
+      summary: Add one game to the list
       description: >-
-        Adds games to the list. A game already in the list is rejected with 409
-        rather than moved — use PATCH to change a game's category. The Add Game
-        picker asks for `/games?excludeMine=true`, so this is only reachable
-        from a stale client.
+        Adds one game to the list. A game already in the list is rejected with
+        409 rather than moved — use PATCH to change a game's category. The Add
+        Game picker shows games you already have as disabled, so the 409 is
+        reachable only from a stale client.
+
+
+        A rating and a review may be sent with the add, and only when the
+        category is finished. Unlike PATCH there is no clear sentinel here:
+        there is nothing to clear on an entry that does not exist yet, so a
+        rating of 0 is rejected as out of range.
       tags: [UserGames]
       security:
         - BearerAuth: []
@@ -413,17 +419,18 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/AddUserGamesRequest' }
+            schema: { $ref: '#/components/schemas/AddUserGameRequest' }
       responses:
         '201':
-          description: The created or updated entries
+          description: The created entry, with its game embedded
           content:
             application/json:
-              schema:
-                type: array
-                items: { $ref: '#/components/schemas/UserGame' }
+              schema: { $ref: '#/components/schemas/UserGame' }
         '400':
-          description: Empty array, more than 50 ids, or an invalid category
+          description: >-
+            Missing or zero igdbId, an invalid category, a rating out of range
+            or off the half-step, a review over the length cap, or a rating or
+            review sent with a category that is not finished.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -433,20 +440,29 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
         '404':
-          description: One or more game ids are not in the catalog
+          description: IGDB does not know that id
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
         '409':
           description: >-
-            At least one game is already in the list. All or nothing — none of
-            the games in the request were added. Moving a game between
-            categories is PATCH, not a repeat POST.
+            The game is already in the list. Moving a game between categories
+            is PATCH, not a repeat POST.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
         '500':
           description: Write failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '502':
+          description: IGDB could not be reached
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503':
+          description: This deployment has no IGDB credentials
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -802,25 +818,33 @@ components:
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
 
-    AddUserGamesRequest:
+    AddUserGameRequest:
       type: object
       description: >-
-        IGDB ids. Local catalog ids are no longer accepted: nothing browses the
+        One IGDB id. Local catalog ids are not accepted: nothing browses the
         catalog now that the picker searches IGDB.
-      required: [igdbIds, category]
+      required: [igdbId, category]
       properties:
-        igdbIds:
-          type: array
+        igdbId:
+          type: integer
           description: >-
-            IGDB ids. Any game the catalog has not seen is fetched from IGDB and
-            imported before the list entry is created. An id IGDB does not know
-            is a 404.
-          minItems: 1
-          maxItems: 50
-          items: { type: integer }
+            An IGDB id. If the catalog has not seen the game it is fetched from
+            IGDB and imported before the list entry is created. An id IGDB does
+            not know is a 404.
         category:
           type: string
           enum: [finished, currently_playing, want_to_play]
+        rating:
+          type: number
+          multipleOf: 0.5
+          minimum: 0.5
+          maximum: 10
+          description: >-
+            Optional, and only valid when category is finished. There is no
+            clear sentinel here as there is on PATCH, so the minimum is 0.5.
+        review:
+          type: string
+          description: Optional, and only valid when category is finished.
 
     IGDBTag:
       type: object

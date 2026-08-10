@@ -20,7 +20,7 @@ info:
     There is no document-level `security` default: every protected operation
     declares `BearerAuth` explicitly, so an operation without a `security`
     block is genuinely public.
-  version: 0.4.0
+  version: 0.5.0
 
 servers:
   - url: http://localhost:3130
@@ -728,6 +728,11 @@ components:
             Edition points at Skyrim — so it must never on its own be taken to
             mean "this is an add-on". Only kind dlc and expansion are treated
             that way.
+        summary:
+          type: string
+          description: >-
+            IGDB's short description, or "" when IGDB has none. Shown on the
+            detail cards so somebody meeting the game cold can tell what it is.
         releaseDate: { type: string, format: date-time }
         genres:
           type: array
@@ -938,6 +943,10 @@ components:
           type: integer
           nullable: true
           description: IGDB's id for the game this is an add-on of, or null.
+        summary:
+          type: string
+          nullable: true
+          description: IGDB's short description, or null when IGDB has none.
         image:
           type: string
           nullable: true

@@ -230,6 +230,7 @@ type apiGame struct {
 	// A scalar, not a reference expansion: `fields parent_game;` returns the
 	// id directly. Asking for parent_game.id would return an object instead.
 	ParentGame *int     `json:"parent_game"`
+	Summary    *string  `json:"summary"`
 	Genres     []apiTag `json:"genres"`
 	Themes     []apiTag `json:"themes"`
 	GameModes  []apiTag `json:"game_modes"`
@@ -254,7 +255,7 @@ func tags(in []apiTag) []Tag {
 // never be missing from one of them. game_type is a reference, so it needs
 // .type to come back as a name rather than an id; `category` is deprecated and
 // returns null for every game.
-const gameFields = `fields id,name,cover.image_id,first_release_date,game_type.type,parent_game,` +
+const gameFields = `fields id,name,cover.image_id,first_release_date,game_type.type,parent_game,summary,` +
 	`genres.id,genres.name,themes.id,themes.name,game_modes.id,game_modes.name;`
 
 // excludeNoise drops the release types nobody is trying to find in a search.
@@ -371,6 +372,13 @@ func (c *Client) games(ctx context.Context, body string) ([]Game, error) {
 		// storable slug rather than an empty string.
 		if p.GameType != nil {
 			g.Kind = kindSlug(p.GameType.Type)
+		}
+
+		if p.Summary != nil {
+			// Copied rather than aliased, for the same reason as the parent
+			// below: p is a loop variable.
+			summary := *p.Summary
+			g.Summary = &summary
 		}
 
 		if p.ParentGame != nil {

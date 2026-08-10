@@ -174,6 +174,9 @@ func igdbToGame(g igdb.Game) *models.Game {
 	if g.Image != nil {
 		game.Image = *g.Image
 	}
+	if g.Summary != nil {
+		game.Summary = *g.Summary
+	}
 	if g.ReleaseDate != nil {
 		// Parsed back from the YYYY-MM-DD the client formatted. Storing the
 		// zero time for an unreleased game is fine: release_date is only ever

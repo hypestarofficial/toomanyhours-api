@@ -461,3 +461,34 @@ func TestGetDLCsQueriesByParentAndType(t *testing.T) {
 		t.Errorf("query wrongly carries the search exclusion: %s", got)
 	}
 }
+
+func TestQueryAsksForSummary(t *testing.T) {
+	if !strings.Contains(gameFields, "summary") {
+		t.Errorf("gameFields does not request summary: %s", gameFields)
+	}
+	// storyline is deliberately not requested: it is null on DLC and overlaps
+	// summary, so it adds length and absence and nothing else.
+	if strings.Contains(gameFields, "storyline") {
+		t.Errorf("gameFields requests storyline, which is deliberately excluded: %s", gameFields)
+	}
+}
+
+func TestParsesSummary(t *testing.T) {
+	f := newFakeIGDB(t)
+	f.searchBody = `[{"id":1942,"name":"The Witcher 3","summary":"A monster hunter looks for his daughter."},
+	                 {"id":999999,"name":"Undescribed Thing"}]`
+	c := f.client(time.Now)
+
+	games, err := c.Search(context.Background(), "witcher", 10)
+	if err != nil {
+		t.Fatalf("search: %v", err)
+	}
+	if games[0].Summary == nil || *games[0].Summary != "A monster hunter looks for his daughter." {
+		t.Errorf("summary = %v, want the sentence", games[0].Summary)
+	}
+	// A game IGDB has no summary for must come back nil, not "": the column is
+	// nullable for the same reason.
+	if games[1].Summary != nil {
+		t.Errorf("summary = %v, want nil for a game with none", games[1].Summary)
+	}
+}

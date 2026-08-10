@@ -43,6 +43,9 @@ type Game struct {
 	// expansions are hidden under a parent in this product, but IGDB sets it
 	// on remasters and expanded games too — Skyrim SE points at Skyrim.
 	ParentIGDBID *int `json:"parentIgdbId"`
+	// IGDB's short description, or nil. Nullable like Image and ReleaseDate,
+	// because IGDB really does have games with none.
+	Summary *string `json:"summary"`
 	// Nullable. IGDB has games with no cover art and games with no announced
 	// date, both common enough that a client assuming otherwise breaks on a
 	// real search.

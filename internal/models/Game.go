@@ -38,8 +38,11 @@ type Game struct {
 	// Set on remasters and expanded games as well as DLC — Skyrim Special
 	// Edition points at Skyrim — so this alone never means "add-on". Only
 	// kind dlc and expansion are treated that way.
-	ParentIGDBID *int      `json:"parentIgdbId" gorm:"column:parent_igdb_id"`
-	ReleaseDate  time.Time `json:"releaseDate"`
+	ParentIGDBID *int `json:"parentIgdbId" gorm:"column:parent_igdb_id"`
+	// IGDB's short description. A plain string rather than a pointer, matching
+	// Image: the catalog stores "" for absent, and the API reports "".
+	Summary     string    `json:"summary"`
+	ReleaseDate time.Time `json:"releaseDate"`
 
 	// Stored. Loaded with Preload("Tags") and never serialised directly.
 	Tags []*Tag `json:"-" gorm:"many2many:games_tags"`

@@ -366,3 +366,30 @@ func TestEntryResponseCarriesParentIgdbID(t *testing.T) {
 		t.Errorf("parentIgdbId = %v, want %d", entry.Game.ParentIGDBID, parent.IGDBID)
 	}
 }
+
+// A column the model does not serialise is invisible however well it stores,
+// and the frontend reads this off the embedded game.
+func TestEntryResponseCarriesSummary(t *testing.T) {
+	app, tx := newTestApp(t)
+	user := createUser(t, tx, "player", "public")
+	game := createGame(t, tx, 903010, "Some Game")
+
+	tx.Model(&models.Game{}).Where("id = ?", game.ID).Update("summary", "A short description.")
+
+	w := do(t, app, http.MethodPost, "/me/games",
+		map[string]any{"igdbId": game.IGDBID, "category": "want_to_play"},
+		withAuth(accessToken(t, app, user)))
+
+	mustStatus(t, w, http.StatusCreated)
+
+	var entry struct {
+		Game struct {
+			Summary string `json:"summary"`
+		} `json:"game"`
+	}
+	decodeJSON(t, w, &entry)
+
+	if entry.Game.Summary != "A short description." {
+		t.Errorf("summary = %q, want %q", entry.Game.Summary, "A short description.")
+	}
+}

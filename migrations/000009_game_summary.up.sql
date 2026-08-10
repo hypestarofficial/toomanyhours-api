@@ -1,0 +1,11 @@
+-- IGDB's short description of the game, for somebody meeting it cold on
+-- somebody else's list.
+--
+-- Nullable with no default: IGDB genuinely has games without one, and an empty
+-- string would be a second way of saying the same thing.
+--
+-- No backfill here. SQL cannot call IGDB — the wall 000007 hit with titles and
+-- 000008 hit with parents — and these are paragraphs for 21 rows, which would
+-- be unreadable as literals and stale the moment IGDB edits one. cmd/backfill
+-- fills them instead.
+ALTER TABLE public.games ADD COLUMN summary text;

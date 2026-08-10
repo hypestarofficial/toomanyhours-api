@@ -7,6 +7,7 @@ import (
 	"net/mail"
 	"os"
 	"time"
+	"toomanyhours-api/internal/database"
 	"toomanyhours-api/internal/igdb"
 	"toomanyhours-api/internal/ratelimit"
 	"toomanyhours-api/internal/repository/dbrepo"
@@ -89,22 +90,9 @@ func main() {
 
 	// get environment variables
 	port := os.Getenv("PORT")
-	dbUser := os.Getenv("DB_USER")
-	dbPass := os.Getenv("DB_PASSWORD")
-	dbName := os.Getenv("DB_NAME")
-	dbPort := os.Getenv("DB_PORT")
-	dbSslmode := os.Getenv("DB_SSLMODE")
-	dbTimezone := os.Getenv("DB_TIMEZONE")
-	dbTimeout := os.Getenv("DB_CONNECT_TIMEOUT")
-	dbHost := os.Getenv("DB_HOST")
 
 	// read from command line
-	flag.StringVar(
-		&app.DSN,
-		"dsn",
-		fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s timezone=%s connect_timeout=%s", dbHost, dbPort, dbUser, dbPass, dbName, dbSslmode, dbTimezone, dbTimeout),
-		"Postgres connection string",
-	)
+	flag.StringVar(&app.DSN, "dsn", database.DSNFromEnv(), "Postgres connection string")
 	flag.StringVar(
 		&app.JWTSecret, "jwt-secret", os.Getenv("JWT_SECRET"), "Signing secret")
 	flag.StringVar(
@@ -138,7 +126,7 @@ func main() {
 	}
 
 	// connect to database
-	gormConn, err := app.connectGormDB()
+	gormConn, err := database.Open(app.DSN)
 	if err != nil {
 		log.Fatal(err)
 	}

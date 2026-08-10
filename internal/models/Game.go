@@ -1,6 +1,10 @@
 package models
 
-import "time"
+import (
+	"time"
+
+	"toomanyhours-api/internal/igdb"
+)
 
 // Tag is a genre, theme or game mode — three lists IGDB attaches to a game that
 // behave identically, so they share one table keyed by (facet, igdb_id).
@@ -78,4 +82,45 @@ func (g *Game) SplitTags() {
 			g.GameModes = append(g.GameModes, t)
 		}
 	}
+}
+
+// FromIGDB converts a fetched IGDB game into a catalog row.
+//
+// Here rather than in cmd/api because two binaries build catalog rows now: the
+// API when somebody adds a game, and cmd/backfill when refreshing the lot. Two
+// copies would drift the first time a field is added — which is exactly the
+// kind of miss that left parent_igdb_id out of the upsert.
+func FromIGDB(g igdb.Game) *Game {
+	game := &Game{
+		IGDBID:       g.IGDBID,
+		Title:        g.Title,
+		Kind:         g.Kind,
+		ParentIGDBID: g.ParentIGDBID,
+	}
+	if g.Image != nil {
+		game.Image = *g.Image
+	}
+	if g.Summary != nil {
+		game.Summary = *g.Summary
+	}
+	if g.ReleaseDate != nil {
+		// Parsed back from the YYYY-MM-DD the client formatted. Storing the
+		// zero time for an unreleased game is fine: release_date is only ever
+		// displayed.
+		if t, err := time.Parse("2006-01-02", *g.ReleaseDate); err == nil {
+			game.ReleaseDate = t
+		}
+	}
+
+	for _, t := range g.Genres {
+		game.Tags = append(game.Tags, &Tag{Facet: "genre", IGDBID: t.IGDBID, Name: t.Name})
+	}
+	for _, t := range g.Themes {
+		game.Tags = append(game.Tags, &Tag{Facet: "theme", IGDBID: t.IGDBID, Name: t.Name})
+	}
+	for _, t := range g.GameModes {
+		game.Tags = append(game.Tags, &Tag{Facet: "game_mode", IGDBID: t.IGDBID, Name: t.Name})
+	}
+
+	return game
 }

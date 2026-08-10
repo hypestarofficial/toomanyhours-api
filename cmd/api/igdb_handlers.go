@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 	"toomanyhours-api/internal/igdb"
 	"toomanyhours-api/internal/models"
 
@@ -141,7 +140,7 @@ func (app *application) importIGDBGames(c *gin.Context, igdbIDs []int) ([]int, e
 
 		toStore := make([]*models.Game, 0, len(fetched))
 		for _, g := range fetched {
-			toStore = append(toStore, igdbToGame(g))
+			toStore = append(toStore, models.FromIGDB(g))
 		}
 
 		stored, err := app.DB.ImportGames(c, toStore)
@@ -164,37 +163,3 @@ func (app *application) importIGDBGames(c *gin.Context, igdbIDs []int) ([]int, e
 }
 
 // igdbToGame converts a search result into a catalog row.
-func igdbToGame(g igdb.Game) *models.Game {
-	game := &models.Game{
-		IGDBID:       g.IGDBID,
-		Title:        g.Title,
-		Kind:         g.Kind,
-		ParentIGDBID: g.ParentIGDBID,
-	}
-	if g.Image != nil {
-		game.Image = *g.Image
-	}
-	if g.Summary != nil {
-		game.Summary = *g.Summary
-	}
-	if g.ReleaseDate != nil {
-		// Parsed back from the YYYY-MM-DD the client formatted. Storing the
-		// zero time for an unreleased game is fine: release_date is only ever
-		// displayed.
-		if t, err := time.Parse("2006-01-02", *g.ReleaseDate); err == nil {
-			game.ReleaseDate = t
-		}
-	}
-
-	for _, t := range g.Genres {
-		game.Tags = append(game.Tags, &models.Tag{Facet: "genre", IGDBID: t.IGDBID, Name: t.Name})
-	}
-	for _, t := range g.Themes {
-		game.Tags = append(game.Tags, &models.Tag{Facet: "theme", IGDBID: t.IGDBID, Name: t.Name})
-	}
-	for _, t := range g.GameModes {
-		game.Tags = append(game.Tags, &models.Tag{Facet: "game_mode", IGDBID: t.IGDBID, Name: t.Name})
-	}
-
-	return game
-}

@@ -9,6 +9,22 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// AllGameIGDBIDs returns every IGDB id in the catalog.
+//
+// Only cmd/backfill wants this: nothing in the API has a reason to read the
+// whole catalog, which is why no such method existed until a second binary
+// needed one. No timeout of its own — like every other method here, it takes
+// whatever deadline the caller's context carries.
+func (m *PostgresDBRepo) AllGameIGDBIDs(ctx context.Context) ([]int, error) {
+	var ids []int
+
+	if err := m.GormDB.WithContext(ctx).Model(&models.Game{}).Order("igdb_id").Pluck("igdb_id", &ids).Error; err != nil {
+		return nil, err
+	}
+
+	return ids, nil
+}
+
 // GamesByIGDBIDs maps IGDB ids to local game ids, for the ones already known.
 // Missing keys are the games that need importing.
 func (m *PostgresDBRepo) GamesByIGDBIDs(ctx context.Context, igdbIDs []int) (map[int]int, error) {

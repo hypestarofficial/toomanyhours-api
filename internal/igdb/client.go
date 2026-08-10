@@ -229,10 +229,10 @@ type apiGame struct {
 	} `json:"game_type"`
 	// A scalar, not a reference expansion: `fields parent_game;` returns the
 	// id directly. Asking for parent_game.id would return an object instead.
-	ParentGame *int `json:"parent_game"`
-	Genres    []apiTag `json:"genres"`
-	Themes    []apiTag `json:"themes"`
-	GameModes []apiTag `json:"game_modes"`
+	ParentGame *int     `json:"parent_game"`
+	Genres     []apiTag `json:"genres"`
+	Themes     []apiTag `json:"themes"`
+	GameModes  []apiTag `json:"game_modes"`
 }
 
 type apiTag struct {
@@ -257,21 +257,28 @@ func tags(in []apiTag) []Tag {
 const gameFields = `fields id,name,cover.image_id,first_release_date,game_type.type,parent_game,` +
 	`genres.id,genres.name,themes.id,themes.name,game_modes.id,game_modes.name;`
 
-// excludeNoise drops the release types nobody is trying to add to a list.
+// excludeNoise drops the release types nobody is trying to find in a search.
 // Weapon and skin packs are almost all Pack / Addon, so that one cut does most
 // of the work.
 //
-// DLC, Expansion, Bundle, Remaster and Expanded Game deliberately stay: GOTY
-// editions are real, and two of the games already in this database are a
-// remaster (Skyrim SE) and an expanded game (GTA V Enhanced). A main-game-only
-// filter would exclude games from the very lists it serves.
+// DLC and Expansion are excluded because they belong to a game rather than
+// standing beside it: they are reached from their parent's card, where the
+// whole set is listed at once. A season pass otherwise fills the results, and
+// then the list, with one game — Borderlands 4 alone accounts for two rows in
+// this database.
 //
-// It cannot be perfect. Some cosmetic packs are filed under DLC, which stays.
-// IGDB has no "is this cosmetic" flag, so the choice is between removing most
-// noise and also removing Blood and Wine.
+// The cost is real and was accepted knowingly: an add-on whose parent is not
+// in your list cannot be found at all. Gears 5: Hivebusters is a standalone
+// campaign, and Blood and Wine is better than most whole games. Adding the
+// parent, ticking the add-on and removing the parent again is the way back.
+//
+// Bundle, Remaster and Expanded Game deliberately stay. They are the release
+// someone actually played, not an addition to one — Fallout 3 GOTY, Skyrim SE
+// and GTA V Enhanced are all in this database, and two of them have an IGDB
+// parent, which is why the rule turns on kind rather than on having a parent.
 var excludeNoise = fmt.Sprintf(
-	"where game_type != %d & game_type != %d & game_type != %d & game_type != %d;",
-	typeMod, typeFork, typePackAddon, typeUpdate,
+	"where game_type != %d & game_type != %d & game_type != %d & game_type != %d & game_type != %d & game_type != %d;",
+	typeDLC, typeExpansion, typeMod, typeFork, typePackAddon, typeUpdate,
 )
 
 // Search returns games matching a free-text query, best match first.

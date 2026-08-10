@@ -3,6 +3,8 @@ package igdb
 // IGDB's game_type ids, needed for the exclusion clause. The names come back
 // from the API; these numbers are what the query filters on.
 const (
+	typeDLC       = 1
+	typeExpansion = 2
 	typeMod       = 5
 	typeFork      = 12
 	typePackAddon = 13

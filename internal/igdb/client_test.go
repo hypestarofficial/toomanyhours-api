@@ -352,7 +352,10 @@ func TestSearchExcludesNoiseTypes(t *testing.T) {
 	}
 
 	got := f.lastBody()
-	for _, id := range []int{5, 12, 13, 14} {
+	// 1 and 2 are DLC and Expansion: they belong to a game rather than
+	// standing beside it, and are reached from their parent's card. The same
+	// two kinds hide under an owned parent in the list — one rule, two places.
+	for _, id := range []int{1, 2, 5, 12, 13, 14} {
 		if !strings.Contains(got, fmt.Sprintf("game_type != %d", id)) {
 			t.Fatalf("query does not exclude game_type %d: %s", id, got)
 		}
@@ -424,5 +427,16 @@ func TestParsesParentGame(t *testing.T) {
 	// A game with no parent must come back nil, not zero: 0 would be an id.
 	if games[1].ParentIGDBID != nil {
 		t.Errorf("parent = %v, want nil for a game with no parent_game", games[1].ParentIGDBID)
+	}
+}
+
+// Bundle, remaster and expanded game are the release someone actually played —
+// Fallout 3 GOTY, Skyrim SE and GTA V Enhanced are all in this database.
+func TestSearchStillReturnsStandaloneReleases(t *testing.T) {
+	for _, id := range []int{3, 9, 10} { // bundle, remaster, expanded_game
+		unwanted := fmt.Sprintf("game_type != %d", id)
+		if strings.Contains(excludeNoise, unwanted) {
+			t.Errorf("excludeNoise wrongly excludes game_type %d: %s", id, excludeNoise)
+		}
 	}
 }

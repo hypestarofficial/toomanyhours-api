@@ -65,8 +65,12 @@ func (m *PostgresDBRepo) ImportGames(ctx context.Context, games []*models.Game) 
 
 			if err := tx.Clauses(clause.OnConflict{
 				Columns: []clause.Column{{Name: "igdb_id"}},
+				// Every column IGDB owns. A field missing here is silently
+				// ignored on re-import, which is how parent_igdb_id came to be
+				// dropped by the very call that had just fetched it. Anything
+				// added to models.Game from upstream belongs in this list.
 				DoUpdates: clause.AssignmentColumns([]string{
-					"title", "image", "kind", "release_date", "updated_at",
+					"title", "image", "kind", "release_date", "parent_igdb_id", "summary", "updated_at",
 				}),
 			}).Create(g).Error; err != nil {
 				return err

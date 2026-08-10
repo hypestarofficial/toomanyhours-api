@@ -68,6 +68,10 @@ func (app *application) routes() *gin.Engine {
 		// gone.
 		auth.GET("/games/search", app.SearchGames) // query params: q, limit
 
+		// A game's DLC and expansions, straight from IGDB. Sits beside the
+		// static /games/search above; a test pins that search still wins.
+		auth.GET("/games/:igdbId/dlcs", app.GetGameDLCs)
+
 		// Genres
 		auth.GET("/genres", app.GetGenres)
 	}

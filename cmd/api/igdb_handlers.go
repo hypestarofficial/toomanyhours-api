@@ -68,6 +68,40 @@ func (app *application) SearchGames(c *gin.Context) {
 	c.JSON(http.StatusOK, games)
 }
 
+// GetGameDLCs proxies IGDB for one game's add-ons.
+//
+// Results are pure IGDB, keyed on igdbId rather than id, because a catalog row
+// exists only for add-ons somebody has already added. Nothing is imported
+// here: caching what a user actually touches is the normal use of the API,
+// and mirroring a catalog is what the terms prohibit.
+func (app *application) GetGameDLCs(c *gin.Context) {
+	if app.IGDB == nil {
+		app.errorJSON(c, errors.New("Game data is not configured on this server"), http.StatusServiceUnavailable)
+		return
+	}
+
+	igdbID, err := strconv.Atoi(c.Param("igdbId"))
+	if err != nil || igdbID < 1 {
+		app.errorJSON(c, errors.New("Invalid game id"), http.StatusBadRequest)
+		return
+	}
+
+	games, err := app.IGDB.GetDLCs(c, igdbID)
+	if err != nil {
+		if errors.Is(err, igdb.ErrNotConfigured) {
+			app.errorJSON(c, errors.New("Game data is not configured on this server"), http.StatusServiceUnavailable)
+			return
+		}
+		// Logged here, never forwarded: IGDB's error body is not ours to relay
+		// and could echo the request, which carries our client id.
+		log.Printf("igdb dlcs %d: %v", igdbID, err)
+		app.errorJSON(c, errors.New("Game data is unavailable right now"), http.StatusBadGateway)
+		return
+	}
+
+	c.JSON(http.StatusOK, games)
+}
+
 // importIGDBGames turns IGDB ids into local game ids, fetching and storing any
 // the catalog has not seen. It writes its own error response and returns a nil
 // slice when something fails, so callers return immediately.

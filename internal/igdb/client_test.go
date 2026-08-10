@@ -440,3 +440,24 @@ func TestSearchStillReturnsStandaloneReleases(t *testing.T) {
 		}
 	}
 }
+
+func TestGetDLCsQueriesByParentAndType(t *testing.T) {
+	f := newFakeIGDB(t)
+	c := f.client(time.Now)
+
+	if _, err := c.GetDLCs(context.Background(), 103292); err != nil {
+		t.Fatalf("GetDLCs: %v", err)
+	}
+
+	got := f.lastBody()
+	for _, want := range []string{"where parent_game = 103292", "game_type = 1", "game_type = 2"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("query missing %q: %s", want, got)
+		}
+	}
+	// Never the search exclusion: this list is already scoped to one game, and
+	// excluding DLC here would return nothing at all.
+	if strings.Contains(got, "game_type != 1") {
+		t.Errorf("query wrongly carries the search exclusion: %s", got)
+	}
+}

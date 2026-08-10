@@ -315,6 +315,32 @@ func (c *Client) GetByIDs(ctx context.Context, ids []int) ([]Game, error) {
 	return c.games(ctx, body)
 }
 
+// dlcLimit bounds one add-on listing. Fifty is far more than any real game has
+// once packs and mods are excluded, and it stops a pathological entry from
+// returning a thousand rows into a modal.
+const dlcLimit = 50
+
+// GetDLCs returns the add-ons of one game: everything IGDB files as DLC or
+// Expansion with this game as its parent.
+//
+// Named for DLC because that is the word people use, and it returns expansions
+// too. Packs, mods and updates are excluded here for the same reason search
+// excludes them — a wall of weapon skins is not what anyone opened this for.
+//
+// Deliberately not excludeNoise: that clause now excludes DLC and Expansion,
+// which is everything this query is for.
+//
+// The id is an integer, so nothing user-supplied is interpolated into the
+// query; the same reasoning GetByIDs documents.
+func (c *Client) GetDLCs(ctx context.Context, parentIGDBID int) ([]Game, error) {
+	body := fmt.Sprintf(
+		`%s where parent_game = %d & (game_type = %d | game_type = %d); sort first_release_date asc; limit %d;`,
+		gameFields, parentIGDBID, typeDLC, typeExpansion, dlcLimit,
+	)
+
+	return c.games(ctx, body)
+}
+
 // games runs one Apicalypse body against /games and parses the result.
 //
 // Shared so Search and GetByIDs cannot decode differently: a field handled in

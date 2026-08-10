@@ -20,7 +20,7 @@ info:
     There is no document-level `security` default: every protected operation
     declares `BearerAuth` explicitly, so an operation without a `security`
     block is genuinely public.
-  version: 0.3.0
+  version: 0.4.0
 
 servers:
   - url: http://localhost:3130
@@ -598,6 +598,53 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
 
+  /games/{igdbId}/dlcs:
+    parameters:
+      - name: igdbId
+        in: path
+        required: true
+        schema: { type: integer }
+        description: IGDB's id for the parent game, not a catalog id.
+    get:
+      operationId: getGameDlcs
+      summary: A game's DLC and expansions
+      description: >-
+        Straight from IGDB, filtered to DLC and Expansion — packs, mods and
+        updates are excluded, as they are in search. Nothing is imported into
+        the catalog by this call; an add-on becomes a catalog row only when
+        somebody adds it to their list.
+      tags: [Games]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: The game's add-ons, oldest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/IGDBGame' }
+        '400':
+          description: The id is not a positive integer
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          description: Missing or invalid token
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '502':
+          description: IGDB could not be reached
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503':
+          description: This deployment has no IGDB credentials
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
   /genres:
     get:
       operationId: getGenres
@@ -671,6 +718,16 @@ components:
             expanded_game and so on, or unknown. Deliberately not called
             category, which in this API means finished/currently_playing/
             want_to_play.
+        parentIgdbId:
+          type: integer
+          nullable: true
+          example: 103292
+          description: >-
+            IGDB's id for the game this one is an add-on of, or null. Set on
+            remasters and expanded games as well as DLC — Skyrim Special
+            Edition points at Skyrim — so it must never on its own be taken to
+            mean "this is an add-on". Only kind dlc and expansion are treated
+            that way.
         releaseDate: { type: string, format: date-time }
         genres:
           type: array
@@ -877,6 +934,10 @@ components:
             expanded_game and so on, or unknown. Deliberately not called
             category, which in this API means finished/currently_playing/
             want_to_play.
+        parentIgdbId:
+          type: integer
+          nullable: true
+          description: IGDB's id for the game this is an add-on of, or null.
         image:
           type: string
           nullable: true

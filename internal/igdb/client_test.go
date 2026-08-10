@@ -396,3 +396,33 @@ func TestGetByIDsWithNoIDsMakesNoRequest(t *testing.T) {
 		t.Fatalf("made %d requests for an empty id list, want 0", got)
 	}
 }
+
+// The parser can only fill a field the query asked for. Search and GetByIDs
+// share gameFields precisely so this cannot be true of one and not the other.
+func TestQueryAsksForParentGame(t *testing.T) {
+	if !strings.Contains(gameFields, "parent_game") {
+		t.Errorf("gameFields does not request parent_game: %s", gameFields)
+	}
+}
+
+func TestParsesParentGame(t *testing.T) {
+	f := newFakeIGDB(t)
+	f.searchBody = `[{"id":140517,"name":"Gears 5: Hivebusters","parent_game":103292},
+	                 {"id":1942,"name":"The Witcher 3"}]`
+	c := f.client(time.Now)
+
+	games, err := c.Search(context.Background(), "gears", 10)
+	if err != nil {
+		t.Fatalf("search: %v", err)
+	}
+	if len(games) != 2 {
+		t.Fatalf("got %d games, want 2", len(games))
+	}
+	if games[0].ParentIGDBID == nil || *games[0].ParentIGDBID != 103292 {
+		t.Errorf("parent = %v, want 103292", games[0].ParentIGDBID)
+	}
+	// A game with no parent must come back nil, not zero: 0 would be an id.
+	if games[1].ParentIGDBID != nil {
+		t.Errorf("parent = %v, want nil for a game with no parent_game", games[1].ParentIGDBID)
+	}
+}

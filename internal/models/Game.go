@@ -30,8 +30,16 @@ type Game struct {
 	// What sort of release this is: main_game, dlc, expansion, bundle,
 	// remaster... Never "category", which in this product means
 	// finished/currently_playing/want_to_play.
-	Kind        string    `json:"kind"`
-	ReleaseDate time.Time `json:"releaseDate"`
+	Kind string `json:"kind"`
+	// IGDB's id for the game this one is an add-on of, or nil. Nullable and
+	// not a foreign key: the parent is very often not in the catalog. A
+	// pointer because 0 would be an id, and "no parent" is not game zero.
+	//
+	// Set on remasters and expanded games as well as DLC — Skyrim Special
+	// Edition points at Skyrim — so this alone never means "add-on". Only
+	// kind dlc and expansion are treated that way.
+	ParentIGDBID *int      `json:"parentIgdbId" gorm:"column:parent_igdb_id"`
+	ReleaseDate  time.Time `json:"releaseDate"`
 
 	// Stored. Loaded with Preload("Tags") and never serialised directly.
 	Tags []*Tag `json:"-" gorm:"many2many:games_tags"`

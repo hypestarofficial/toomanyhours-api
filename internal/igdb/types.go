@@ -39,6 +39,10 @@ type Game struct {
 	// product's categories are finished/currently_playing/want_to_play, and
 	// two meanings for one word in one codebase is how bugs get written.
 	Kind string `json:"kind"`
+	// IGDB's id for the game this is an add-on of, or nil. Only DLC and
+	// expansions are hidden under a parent in this product, but IGDB sets it
+	// on remasters and expanded games too — Skyrim SE points at Skyrim.
+	ParentIGDBID *int `json:"parentIgdbId"`
 	// Nullable. IGDB has games with no cover art and games with no announced
 	// date, both common enough that a client assuming otherwise breaks on a
 	// real search.

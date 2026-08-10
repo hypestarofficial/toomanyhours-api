@@ -132,9 +132,10 @@ func (app *application) importIGDBGames(c *gin.Context, igdbIDs []int) ([]int, e
 // igdbToGame converts a search result into a catalog row.
 func igdbToGame(g igdb.Game) *models.Game {
 	game := &models.Game{
-		IGDBID: g.IGDBID,
-		Title:  g.Title,
-		Kind:   g.Kind,
+		IGDBID:       g.IGDBID,
+		Title:        g.Title,
+		Kind:         g.Kind,
+		ParentIGDBID: g.ParentIGDBID,
 	}
 	if g.Image != nil {
 		game.Image = *g.Image

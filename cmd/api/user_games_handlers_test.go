@@ -333,3 +333,36 @@ func TestMeGamesRequiresAToken(t *testing.T) {
 		})
 	}
 }
+
+// The parent has to survive the round trip to the client — that column is what
+// the frontend reads to decide whether to hide an entry, and a field the model
+// does not serialise is invisible however well it stores.
+//
+// This does not exercise a real IGDB import: every posted igdbId must already
+// be in the catalog, or the handler calls IGDB and the test app points at an
+// unroutable address on purpose. The parse side is covered in internal/igdb.
+func TestEntryResponseCarriesParentIgdbID(t *testing.T) {
+	app, tx := newTestApp(t)
+	user := createUser(t, tx, "player", "public")
+	parent := createGame(t, tx, 903001, "Some Base Game")
+	addon := createGame(t, tx, 903002, "Some Base Game: An Expansion")
+
+	tx.Model(&models.Game{}).Where("id = ?", addon.ID).Update("parent_igdb_id", parent.IGDBID)
+
+	w := do(t, app, http.MethodPost, "/me/games",
+		map[string]any{"igdbId": addon.IGDBID, "category": "want_to_play"},
+		withAuth(accessToken(t, app, user)))
+
+	mustStatus(t, w, http.StatusCreated)
+
+	var entry struct {
+		Game struct {
+			ParentIGDBID *int `json:"parentIgdbId"`
+		} `json:"game"`
+	}
+	decodeJSON(t, w, &entry)
+
+	if entry.Game.ParentIGDBID == nil || *entry.Game.ParentIGDBID != parent.IGDBID {
+		t.Errorf("parentIgdbId = %v, want %d", entry.Game.ParentIGDBID, parent.IGDBID)
+	}
+}

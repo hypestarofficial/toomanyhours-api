@@ -20,7 +20,7 @@ info:
     There is no document-level `security` default: every protected operation
     declares `BearerAuth` explicitly, so an operation without a `security`
     block is genuinely public.
-  version: 0.5.0
+  version: 0.6.0
 
 servers:
   - url: http://localhost:3130
@@ -41,8 +41,6 @@ tags:
     description: The authenticated user's list
   - name: Games
     description: Read-only game catalog
-  - name: Genres
-    description: Genre reference data
 
 paths:
   /:
@@ -641,32 +639,6 @@ paths:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
         '503':
           description: This deployment has no IGDB credentials
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
-
-  /genres:
-    get:
-      operationId: getGenres
-      summary: List all genres
-      tags: [Genres]
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: Genres ordered by name
-          content:
-            application/json:
-              schema:
-                type: array
-                items: { $ref: '#/components/schemas/Tag' }
-        '401':
-          description: Missing, malformed, or expired bearer token
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
-        '500':
-          description: Query failed
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }

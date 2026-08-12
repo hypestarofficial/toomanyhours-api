@@ -25,28 +25,6 @@ func (m *PostgresDBRepo) Connection() *sql.DB {
 	return db
 }
 
-// GetGenres returns the genre tags, for the filter dropdown. Themes and game
-// modes live in the same table and are deliberately not returned: nothing
-// filters by them yet.
-func (m *PostgresDBRepo) GetGenres(ctx context.Context) ([]*models.Tag, error) {
-	var genres []*models.Tag
-
-	result := m.GormDB.WithContext(ctx).
-		Where("facet = ?", "genre").
-		Order("name").
-		Find(&genres)
-
-	if result.Error != nil {
-		return nil, result.Error
-	}
-
-	// Empty rather than nil: the frontend maps over this.
-	if genres == nil {
-		genres = []*models.Tag{}
-	}
-	return genres, nil
-}
-
 func (m *PostgresDBRepo) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
 	var user models.User
 

@@ -71,9 +71,6 @@ func (app *application) routes() *gin.Engine {
 		// A game's DLC and expansions, straight from IGDB. Sits beside the
 		// static /games/search above; a test pins that search still wins.
 		auth.GET("/games/:igdbId/dlcs", app.GetGameDLCs)
-
-		// Genres
-		auth.GET("/genres", app.GetGenres)
 	}
 
 	return router

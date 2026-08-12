@@ -20,7 +20,7 @@ info:
     There is no document-level `security` default: every protected operation
     declares `BearerAuth` explicitly, so an operation without a `security`
     block is genuinely public.
-  version: 0.6.0
+  version: 0.7.0
 
 servers:
   - url: http://localhost:3130
@@ -732,8 +732,16 @@ components:
           type: string
           enum: [public, private]
           description: >-
-            Stored and editable, but not yet read by anything — public profiles
-            are a later phase.
+            Read on every public profile request: a private profile answers 403
+            to everyone, its owner included.
+        bio:
+          type: string
+          nullable: true
+          maxLength: 500
+          description: >-
+            A short self-description, at most 500 characters, or null. Plain
+            text — never rendered as markdown or HTML. Counted in characters,
+            which is what both the CHECK constraint and validate.Bio use.
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
@@ -814,6 +822,14 @@ components:
         createdAt:
           type: string
           format: date-time
+        bio:
+          type: string
+          nullable: true
+          maxLength: 500
+          description: >-
+            A short self-description, at most 500 characters, or null. Plain
+            text — never rendered as markdown or HTML. Counted in characters,
+            which is what both the CHECK constraint and validate.Bio use.
         entries:
           type: array
           items: { $ref: '#/components/schemas/UserGame' }

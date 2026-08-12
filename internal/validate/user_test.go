@@ -90,3 +90,62 @@ func TestEmail(t *testing.T) {
 		t.Fatalf("Email(\"not-an-email\") error = %v, want ErrFormat", err)
 	}
 }
+
+func TestBio(t *testing.T) {
+	t.Run("nil stays nil", func(t *testing.T) {
+		got, err := Bio(nil)
+		if err != nil {
+			t.Fatalf("Bio(nil) error = %v, want nil", err)
+		}
+		if got != nil {
+			t.Errorf("Bio(nil) = %v, want nil", got)
+		}
+	})
+
+	// Cleared has one representation in the database, not two.
+	t.Run("blank collapses to nil", func(t *testing.T) {
+		for _, raw := range []string{"", "   ", "\n\t "} {
+			got, err := Bio(&raw)
+			if err != nil {
+				t.Fatalf("Bio(%q) error = %v, want nil", raw, err)
+			}
+			if got != nil {
+				t.Errorf("Bio(%q) = %q, want nil", raw, *got)
+			}
+		}
+	})
+
+	t.Run("trims surrounding whitespace", func(t *testing.T) {
+		raw := "  plays too much Bethesda  "
+		got, err := Bio(&raw)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got == nil || *got != "plays too much Bethesda" {
+			t.Errorf("Bio = %v, want trimmed", got)
+		}
+	})
+
+	t.Run("500 runes is allowed", func(t *testing.T) {
+		raw := strings.Repeat("a", 500)
+		if _, err := Bio(&raw); err != nil {
+			t.Errorf("500 runes rejected: %v", err)
+		}
+	})
+
+	t.Run("501 runes is rejected", func(t *testing.T) {
+		raw := strings.Repeat("a", 501)
+		if _, err := Bio(&raw); !errors.Is(err, ErrLength) {
+			t.Errorf("err = %v, want ErrLength", err)
+		}
+	})
+
+	// The test that fails the moment the cap is rewritten in bytes: 500 of
+	// these are 1500 bytes. The limit is about how much somebody wrote.
+	t.Run("500 multi-byte runes is allowed", func(t *testing.T) {
+		raw := strings.Repeat("日", 500)
+		if _, err := Bio(&raw); err != nil {
+			t.Errorf("500 multi-byte runes rejected: %v", err)
+		}
+	})
+}

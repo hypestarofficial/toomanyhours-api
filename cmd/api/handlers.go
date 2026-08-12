@@ -154,16 +154,6 @@ func (app *application) PatchMe(c *gin.Context) {
 	})
 }
 
-func (app *application) GetGenres(c *gin.Context) {
-	genres, err := app.DB.GetGenres(c)
-	if err != nil {
-		app.errorJSON(c, err, http.StatusInternalServerError)
-		return
-	}
-
-	c.JSON(http.StatusOK, genres)
-}
-
 func (app *application) Register(c *gin.Context) {
 	var requestPayload struct {
 		Username string `json:"username" binding:"required"`

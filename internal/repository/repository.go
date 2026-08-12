@@ -10,9 +10,6 @@ type DatabaseRepo interface {
 	Connection() *sql.DB
 
 	// Games
-
-	// Genres
-	GetGenres(ctx context.Context) ([]*models.Tag, error)
 	AllGameIGDBIDs(ctx context.Context) ([]int, error)
 	GamesByIGDBIDs(ctx context.Context, igdbIDs []int) (map[int]int, error)
 	ImportGames(ctx context.Context, games []*models.Game) (map[int]int, error)

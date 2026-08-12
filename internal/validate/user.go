@@ -93,3 +93,35 @@ func Password(raw string) error {
 	}
 	return nil
 }
+
+// bioMaxRunes is a few sentences. Long enough to say who you are, short enough
+// that the profile header does not become the page.
+const bioMaxRunes = 500
+
+// Bio normalizes an optional bio, returning the value to store.
+//
+// The same shape as Review, and for the same reasons: a blank bio collapses to
+// nil so that "cleared" has one representation in the database rather than two
+// that every query would have to remember to check for, and the cap counts
+// runes rather than bytes because it is about how much somebody wrote — bytes
+// would give a bio in Japanese a third of the allowance.
+//
+// Runes also match the users_bio_length CHECK, which uses char_length: the two
+// count the same thing, which is what stops them disagreeing at a boundary
+// nobody tests.
+func Bio(raw *string) (*string, error) {
+	if raw == nil {
+		return nil, nil
+	}
+
+	trimmed := strings.TrimSpace(*raw)
+	if trimmed == "" {
+		return nil, nil
+	}
+
+	if utf8.RuneCountInString(trimmed) > bioMaxRunes {
+		return nil, ErrLength
+	}
+
+	return &trimmed, nil
+}

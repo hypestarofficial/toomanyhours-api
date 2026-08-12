@@ -95,7 +95,16 @@ func (m *PostgresDBRepo) CreateUser(ctx context.Context, user *models.User) erro
 func (m *PostgresDBRepo) UpdateUser(ctx context.Context, user *models.User) error {
 	result := m.GormDB.WithContext(ctx).
 		Model(user).
-		Select("Username", "Visibility").
+		// An explicit allowlist of what a profile update may change — and, like
+		// ImportGames' DoUpdates list, a field missing from it is silently
+		// ignored rather than rejected. That is how parent_igdb_id came to be
+		// dropped by the very call that had just fetched it; Bio would have
+		// gone the same way. Anything PatchMe may write belongs here.
+		//
+		// Select also forces the column to be written when the value is a zero
+		// value, which is what makes clearing a bio to nil actually persist
+		// rather than being skipped as "unset".
+		Select("Username", "Visibility", "Bio").
 		Updates(user)
 
 	if result.Error != nil {

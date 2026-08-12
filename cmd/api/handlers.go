@@ -76,6 +76,7 @@ func (app *application) MeHandler(c *gin.Context) {
 		Username:   user.Username,
 		Email:      user.Email,
 		Visibility: user.Visibility,
+		Bio:        user.Bio,
 		CreatedAt:  user.CreatedAt,
 		UpdatedAt:  user.UpdatedAt,
 	}
@@ -99,6 +100,7 @@ func (app *application) PatchMe(c *gin.Context) {
 	var requestPayload struct {
 		Username   *string `json:"username"`
 		Visibility *string `json:"visibility"`
+		Bio        *string `json:"bio"`
 	}
 
 	if err := c.ShouldBindJSON(&requestPayload); err != nil {
@@ -106,7 +108,10 @@ func (app *application) PatchMe(c *gin.Context) {
 		return
 	}
 
-	if requestPayload.Username == nil && requestPayload.Visibility == nil {
+	// Bio belongs in this guard, not only in the branch below: the request that
+	// carries just a bio is also the request that clears one, and without this
+	// it fails as an empty patch.
+	if requestPayload.Username == nil && requestPayload.Visibility == nil && requestPayload.Bio == nil {
 		app.errorJSON(c, errors.New("nothing to update"), http.StatusBadRequest)
 		return
 	}
@@ -135,6 +140,18 @@ func (app *application) PatchMe(c *gin.Context) {
 		user.Visibility = *requestPayload.Visibility
 	}
 
+	if requestPayload.Bio != nil {
+		// Empty string is the clear sentinel, the same convention rating 0 and
+		// review "" use on /me/games: Go's JSON decoder cannot tell an absent
+		// key from an explicit null, so "" is how "clear this" is said.
+		bio, err := validate.Bio(requestPayload.Bio)
+		if err != nil {
+			app.errorJSON(c, fmt.Errorf("bio: %w", err), http.StatusBadRequest)
+			return
+		}
+		user.Bio = bio
+	}
+
 	if err := app.DB.UpdateUser(c, user); err != nil {
 		if errors.Is(err, gorm.ErrDuplicatedKey) {
 			app.errorJSON(c, errors.New("username or email already taken"), http.StatusConflict)
@@ -149,6 +166,7 @@ func (app *application) PatchMe(c *gin.Context) {
 		Username:   user.Username,
 		Email:      user.Email,
 		Visibility: user.Visibility,
+		Bio:        user.Bio,
 		CreatedAt:  user.CreatedAt,
 		UpdatedAt:  user.UpdatedAt,
 	})

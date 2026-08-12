@@ -157,3 +157,40 @@ func TestGetProfileEntriesCarryGenres(t *testing.T) {
 		t.Errorf("genres missing from game: %s", raw)
 	}
 }
+
+func TestGetProfileIncludesTheBio(t *testing.T) {
+	app, tx := newTestApp(t)
+	user := createUser(t, tx, "hype", "public")
+
+	bio := "Plays too much Bethesda."
+	if err := tx.Model(user).Update("bio", bio).Error; err != nil {
+		t.Fatalf("set bio: %v", err)
+	}
+
+	w := do(t, app, http.MethodGet, "/profiles/hype", nil)
+	mustStatus(t, w, http.StatusOK)
+
+	var body struct {
+		Bio *string `json:"bio"`
+	}
+	decodeJSON(t, w, &body)
+
+	if body.Bio == nil || *body.Bio != bio {
+		t.Errorf("bio = %v, want %q", body.Bio, bio)
+	}
+}
+
+// A profile with no bio must send null rather than omit the key: the frontend
+// types it as nullable, and an absent key reads as an older API rather than as
+// an empty bio.
+func TestGetProfileWithoutBioSendsNull(t *testing.T) {
+	app, tx := newTestApp(t)
+	createUser(t, tx, "quiet", "public")
+
+	w := do(t, app, http.MethodGet, "/profiles/quiet", nil)
+	mustStatus(t, w, http.StatusOK)
+
+	if !strings.Contains(w.Body.String(), `"bio":null`) {
+		t.Errorf("body = %s, want a null bio", w.Body.String())
+	}
+}

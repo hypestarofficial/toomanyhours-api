@@ -23,6 +23,7 @@ const maxUsernameLookup = 64
 // which carries the email.
 type publicProfile struct {
 	Username  string             `json:"username"`
+	Bio       *string            `json:"bio"`
 	CreatedAt time.Time          `json:"createdAt"`
 	Entries   []*models.UserGame `json:"entries"`
 }
@@ -71,6 +72,7 @@ func (app *application) GetProfile(c *gin.Context) {
 
 	c.JSON(http.StatusOK, publicProfile{
 		Username:  user.Username,
+		Bio:       user.Bio,
 		CreatedAt: user.CreatedAt,
 		Entries:   entries,
 	})

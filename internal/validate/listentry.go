@@ -11,9 +11,14 @@ import (
 // the allowed values, and the handler's message to the user differs.
 var ErrRange = errors.New("out of range")
 
-// reviewMaxRunes is several paragraphs — far more than the couple of sentences
-// the product aims at, while still bounding what one row can hold.
-const reviewMaxRunes = 2000
+// reviewMaxRunes bounds what one row can hold without getting in the way of
+// somebody who actually wants to write about a game. Raised from 2000, which
+// a real review hit — and hit as a bare 400 the frontend rendered as "something
+// went wrong", because nothing on that side knew the limit existed.
+//
+// There is deliberately no CHECK constraint behind this: review is plain text,
+// so the cap lives here and moving it needs no migration.
+const reviewMaxRunes = 8000
 
 // CategoryFinished is the one category that may hold a rating or a review.
 // Exported because the rule below turns on this exact string; a second spelling

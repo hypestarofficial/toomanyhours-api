@@ -94,13 +94,13 @@ func TestReview(t *testing.T) {
 	})
 
 	t.Run("at the cap", func(t *testing.T) {
-		if _, err := Review(ptr(strings.Repeat("a", 2000))); err != nil {
-			t.Fatalf("2000 runes should be allowed, got %v", err)
+		if _, err := Review(ptr(strings.Repeat("a", 8000))); err != nil {
+			t.Fatalf("8000 runes should be allowed, got %v", err)
 		}
 	})
 
 	t.Run("over the cap", func(t *testing.T) {
-		if _, err := Review(ptr(strings.Repeat("a", 2001))); !errors.Is(err, ErrLength) {
+		if _, err := Review(ptr(strings.Repeat("a", 8001))); !errors.Is(err, ErrLength) {
 			t.Fatalf("2001 runes error = %v, want ErrLength", err)
 		}
 	})
@@ -108,8 +108,8 @@ func TestReview(t *testing.T) {
 	// The cap counts characters, not bytes: a review in Japanese or with
 	// emoji must not be rejected at a third of the length an English one gets.
 	t.Run("cap counts runes, not bytes", func(t *testing.T) {
-		if _, err := Review(ptr(strings.Repeat("あ", 2000))); err != nil {
-			t.Fatalf("2000 multibyte runes should be allowed, got %v", err)
+		if _, err := Review(ptr(strings.Repeat("あ", 8000))); err != nil {
+			t.Fatalf("8000 multibyte runes should be allowed, got %v", err)
 		}
 	})
 }

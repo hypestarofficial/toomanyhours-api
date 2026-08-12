@@ -20,7 +20,7 @@ info:
     There is no document-level `security` default: every protected operation
     declares `BearerAuth` explicitly, so an operation without a `security`
     block is genuinely public.
-  version: 0.7.0
+  version: 0.8.0
 
 servers:
   - url: http://localhost:3130
@@ -859,7 +859,8 @@ components:
         review:
           type: string
           nullable: true
-          description: Plain text, at most 2000 characters.
+          maxLength: 8000
+          description: Plain text, at most 8000 characters.
         hours:
           type: integer
           nullable: true

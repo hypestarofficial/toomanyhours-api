@@ -20,7 +20,7 @@ info:
     There is no document-level `security` default: every protected operation
     declares `BearerAuth` explicitly, so an operation without a `security`
     block is genuinely public.
-  version: 0.8.0
+  version: 0.9.0
 
 servers:
   - url: http://localhost:3130
@@ -259,6 +259,58 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
 
+  /profiles/{username}/avatar:
+    get:
+      operationId: getProfileAvatar
+      summary: A public profile's photo
+      description: >-
+        The second anonymous read path, and 403 for a private profile for the
+        same reason /profiles/{username} is: a link that stopped working should
+        say why. There is no "who is asking" branch, which is why an owner's own
+        photo arrives inline on GET /me instead of from here — an <img> cannot
+        send a bearer token, and this route would 403 its own owner.
+
+        Cache-Control is `immutable` only when `v` matches the stored hash, so a
+        hand-typed URL without one cannot pin a stale photo for a year.
+      tags: [Profiles]
+      security: []   # deliberately public
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema: { type: string }
+          description: Case-insensitive; normalised before lookup.
+        - name: v
+          in: query
+          required: false
+          schema: { type: string }
+          description: >-
+            The avatarHash from GET /profiles/{username}. Present, it earns a
+            one-year immutable cache; absent or stale, the response is no-cache.
+      responses:
+        '200':
+          description: The photo, always a 256x256 JPEG
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        '403':
+          description: The profile is private
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: No such username, or that profile has no photo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          description: Lookup failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
   /usernames/{username}:
     get:
       operationId: checkUsername
@@ -364,6 +416,86 @@ paths:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
         '500':
           description: Update failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /me/avatar:
+    put:
+      operationId: putMyAvatar
+      summary: Upload a profile photo
+      description: >-
+        Multipart, with the image in the `avatar` field. Neither the filename
+        nor the Content-Type is consulted: both are claims a client makes. The
+        server decodes, centre-crops, resizes to 256x256 and re-encodes as JPEG
+        — which is what makes the stored bytes provably an image, and strips
+        EXIF (including GPS) on the way through.
+
+        Two limits, because one cannot do the job: the body is capped at 2MB,
+        and the decoded pixel count at 20,000,000. A 60000-square PNG is forty
+        bytes of header, so only the second catches it.
+
+        Responds with the whole account, so the caller can write it straight
+        into its auth store.
+      tags: [Users]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [avatar]
+              properties:
+                avatar:
+                  type: string
+                  format: binary
+                  description: A JPEG, PNG or GIF, at most 2MB.
+      responses:
+        '200':
+          description: The updated user, with the new photo inline
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '400':
+          description: No file, not a decodable image, or over either limit
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          description: Missing, malformed, or expired bearer token
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          description: Could not process or store the image
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+    delete:
+      operationId: deleteMyAvatar
+      summary: Remove the profile photo
+      description: >-
+        Removing a photo that is not there is not an error: the caller wanted no
+        photo, and there is none. Responds with the whole account, like the
+        upload.
+      tags: [Users]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: The updated user, with avatar null
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '401':
+          description: Missing, malformed, or expired bearer token
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500':
+          description: Removal failed
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -742,6 +874,14 @@ components:
             A short self-description, at most 500 characters, or null. Plain
             text — never rendered as markdown or HTML. Counted in characters,
             which is what both the CHECK constraint and validate.Bio use.
+        avatar:
+          type: string
+          nullable: true
+          description: >-
+            The account's own profile photo as a `data:image/jpeg;base64,...`
+            URI, or null. Inline rather than a URL because an `<img>` cannot
+            send a bearer token, and the public avatar route answers 403 for a
+            private profile — including to its owner.
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
@@ -830,6 +970,13 @@ components:
             A short self-description, at most 500 characters, or null. Plain
             text — never rendered as markdown or HTML. Counted in characters,
             which is what both the CHECK constraint and validate.Bio use.
+        avatarHash:
+          type: string
+          nullable: true
+          description: >-
+            Short content hash of the profile photo, or null when there is none.
+            Build `/profiles/{username}/avatar?v={avatarHash}`; the server sends
+            an immutable cache header only when `v` matches.
         entries:
           type: array
           items: { $ref: '#/components/schemas/UserGame' }

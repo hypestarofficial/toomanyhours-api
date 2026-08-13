@@ -52,6 +52,52 @@ func (app *application) Home(c *gin.Context) {
 	})
 }
 
+// userID pulls the authenticated user out of the Gin context, answering 500 and
+// reporting false when it is missing — which can only happen if a route was
+// registered outside AuthRequired.
+func (app *application) userID(c *gin.Context) (int, bool) {
+	val, exists := c.Get("userID")
+	if !exists {
+		app.errorJSON(c, errors.New("User context missing"), http.StatusInternalServerError)
+		return 0, false
+	}
+
+	id, ok := val.(int)
+	if !ok {
+		app.errorJSON(c, errors.New("Invalid user ID type"), http.StatusInternalServerError)
+		return 0, false
+	}
+
+	return id, true
+}
+
+// respondWithUser reloads the account and returns it, so a write to one part of
+// it answers with the whole current shape.
+//
+// **One place building models.APIUser, rather than three literals.** That list
+// has already dropped a new field twice — bio in 1.6.0, and parent_igdb_id
+// before it in ImportGames' equivalent — because each literal names its fields
+// explicitly and a missing one is silently absent rather than a compile error.
+// Anything added to APIUser belongs here and only here.
+func (app *application) respondWithUser(c *gin.Context, userID int) {
+	user, err := app.DB.GetUserByID(c, userID)
+	if err != nil {
+		app.errorJSON(c, errors.New("Unknown user"), http.StatusNotFound)
+		return
+	}
+
+	c.JSON(http.StatusOK, models.APIUser{
+		ID:         user.ID,
+		Username:   user.Username,
+		Email:      user.Email,
+		Visibility: user.Visibility,
+		Bio:        user.Bio,
+		Avatar:     app.avatarFor(c, user.ID),
+		CreatedAt:  user.CreatedAt,
+		UpdatedAt:  user.UpdatedAt,
+	})
+}
+
 func (app *application) MeHandler(c *gin.Context) {
 	val, exists := c.Get("userID")
 	if !exists {
@@ -65,23 +111,7 @@ func (app *application) MeHandler(c *gin.Context) {
 		return
 	}
 
-	user, err := app.DB.GetUserByID(c, userID)
-	if err != nil {
-		app.errorJSON(c, err)
-		return
-	}
-
-	apiUser := models.APIUser{
-		ID:         user.ID,
-		Username:   user.Username,
-		Email:      user.Email,
-		Visibility: user.Visibility,
-		Bio:        user.Bio,
-		CreatedAt:  user.CreatedAt,
-		UpdatedAt:  user.UpdatedAt,
-	}
-
-	c.JSON(http.StatusOK, apiUser)
+	app.respondWithUser(c, userID)
 }
 
 func (app *application) PatchMe(c *gin.Context) {
@@ -161,15 +191,10 @@ func (app *application) PatchMe(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, models.APIUser{
-		ID:         user.ID,
-		Username:   user.Username,
-		Email:      user.Email,
-		Visibility: user.Visibility,
-		Bio:        user.Bio,
-		CreatedAt:  user.CreatedAt,
-		UpdatedAt:  user.UpdatedAt,
-	})
+	// Through respondWithUser, not a second literal: this response is what the
+	// frontend writes into its auth store, so a field missing here disappears
+	// from the navbar on an unrelated action. Bio was nearly lost that way.
+	app.respondWithUser(c, userID)
 }
 
 func (app *application) Register(c *gin.Context) {

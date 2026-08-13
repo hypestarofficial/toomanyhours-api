@@ -43,6 +43,11 @@ func (app *application) routes() *gin.Engine {
 	// no account.
 	router.GET("/profiles/:username", app.GetProfile)
 
+	// A second anonymous read path, answering 403 for a private profile exactly
+	// as the profile itself does. An owner's own avatar does not come from here
+	// — see avatarDataURI.
+	router.GET("/profiles/:username/avatar", app.GetProfileAvatar)
+
 	// Availability for the register and rename forms. Anonymous for the same
 	// reason as profiles — the register form has no token — and rate limited
 	// because it is unauthenticated and touches the database.
@@ -56,6 +61,8 @@ func (app *application) routes() *gin.Engine {
 		// Me
 		auth.GET("/me", app.MeHandler)
 		auth.PATCH("/me", app.PatchMe)
+		auth.PUT("/me/avatar", app.PutMyAvatar)
+		auth.DELETE("/me/avatar", app.DeleteMyAvatar)
 
 		// My list
 		auth.GET("/me/games", app.GetMyGames)

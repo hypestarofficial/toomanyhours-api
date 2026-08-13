@@ -21,6 +21,11 @@ type DatabaseRepo interface {
 	CreateUser(ctx context.Context, user *models.User) error
 	UpdateUser(ctx context.Context, user *models.User) error
 
+	// Avatars
+	SetUserAvatar(ctx context.Context, userID int, bytes []byte, hash string) error
+	GetUserAvatar(ctx context.Context, userID int) (*models.UserAvatar, error)
+	DeleteUserAvatar(ctx context.Context, userID int) error
+
 	// Games Genres
 
 	// User Games (the list)

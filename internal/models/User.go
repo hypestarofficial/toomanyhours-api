@@ -28,13 +28,17 @@ type User struct {
 // APIUser is the shape sent to clients. It exists so Password can never be
 // serialized by accident.
 type APIUser struct {
-	ID         int       `json:"id"`
-	Username   string    `json:"username"`
-	Email      string    `json:"email"`
-	Visibility string    `json:"visibility"`
-	Bio        *string   `json:"bio"`
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
+	ID         int     `json:"id"`
+	Username   string  `json:"username"`
+	Email      string  `json:"email"`
+	Visibility string  `json:"visibility"`
+	Bio        *string `json:"bio"`
+	// A data URI, or nil. Inline rather than a URL because an <img> cannot send
+	// a bearer token, and the public avatar route answers 403 for a private
+	// profile — including to its owner.
+	Avatar    *string   `json:"avatar"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 func (u *User) PasswordMatches(plainTextPassword string) (bool, error) {

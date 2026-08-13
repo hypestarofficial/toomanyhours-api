@@ -22,10 +22,14 @@ const maxUsernameLookup = 64
 // deliberate act. The obvious mistake here is reaching for models.APIUser,
 // which carries the email.
 type publicProfile struct {
-	Username  string             `json:"username"`
-	Bio       *string            `json:"bio"`
-	CreatedAt time.Time          `json:"createdAt"`
-	Entries   []*models.UserGame `json:"entries"`
+	Username string  `json:"username"`
+	Bio      *string `json:"bio"`
+	// The hash, not the image: the page builds ".../avatar?v=<hash>" from it,
+	// which is what makes the photo cacheable for a year and still change the
+	// moment it is replaced.
+	AvatarHash *string            `json:"avatarHash"`
+	CreatedAt  time.Time          `json:"createdAt"`
+	Entries    []*models.UserGame `json:"entries"`
 }
 
 // GetProfile serves a public profile: whose list it is, and the list.
@@ -70,10 +74,16 @@ func (app *application) GetProfile(c *gin.Context) {
 		return
 	}
 
+	var avatarHash *string
+	if avatar, err := app.DB.GetUserAvatar(c, user.ID); err == nil {
+		avatarHash = &avatar.Hash
+	}
+
 	c.JSON(http.StatusOK, publicProfile{
-		Username:  user.Username,
-		Bio:       user.Bio,
-		CreatedAt: user.CreatedAt,
-		Entries:   entries,
+		Username:   user.Username,
+		Bio:        user.Bio,
+		AvatarHash: avatarHash,
+		CreatedAt:  user.CreatedAt,
+		Entries:    entries,
 	})
 }

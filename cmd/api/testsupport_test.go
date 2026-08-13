@@ -113,6 +113,23 @@ func do(t *testing.T, app *application, method, target string, body any, opts ..
 	return w
 }
 
+// doRaw sends a body verbatim with a caller-chosen Content-Type, for multipart
+// uploads — `do` marshals JSON, which is wrong for a file, and a hand-set
+// Content-Type would omit the multipart boundary.
+func doRaw(t *testing.T, app *application, method, target string, body io.Reader, contentType string, opts ...reqOpt) *httptest.ResponseRecorder {
+	t.Helper()
+
+	req := httptest.NewRequest(method, target, body)
+	req.Header.Set("Content-Type", contentType)
+	for _, opt := range opts {
+		opt(req)
+	}
+
+	w := httptest.NewRecorder()
+	app.routes().ServeHTTP(w, req)
+	return w
+}
+
 func decodeJSON(t *testing.T, w *httptest.ResponseRecorder, target any) {
 	t.Helper()
 	if err := json.Unmarshal(w.Body.Bytes(), target); err != nil {

@@ -20,7 +20,7 @@ info:
     There is no document-level `security` default: every protected operation
     declares `BearerAuth` explicitly, so an operation without a `security`
     block is genuinely public.
-  version: 0.9.0
+  version: 0.10.0
 
 servers:
   - url: http://localhost:3130
@@ -47,20 +47,32 @@ paths:
     get:
       operationId: getHealth
       summary: Health check
+      description: >-
+        Answers 200 while the database responds and 503 when it does not, so it
+        is usable as a platform health check rather than merely readable. The
+        database ping carries its own one-second deadline, shorter than the
+        global three-second request timeout: a check that hangs is
+        indistinguishable from a failing one to whatever is watching it.
+
+        `igdb` reports whether this deployment has Twitch credentials and is
+        never a failure — the API is designed to boot without them.
+
+        Publishes no version, uptime, memory or request count. The route is
+        unauthenticated and world-readable, and a stale version is worse than
+        none.
       tags: [Health]
       security: []   # deliberately public
       responses:
         '200':
-          description: Service is running
+          description: The database answered
           content:
             application/json:
-              schema:
-                type: object
-                required: [status, message, version]
-                properties:
-                  status: { type: string, example: active }
-                  message: { type: string }
-                  version: { type: string }
+              schema: { $ref: '#/components/schemas/Health' }
+        '503':
+          description: The database did not answer
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
 
   /register:
     post:
@@ -850,6 +862,32 @@ components:
           type: array
           description: Always present; empty when the game has none.
           items: { $ref: '#/components/schemas/Tag' }
+
+    Health:
+      type: object
+      required: [status, checks]
+      properties:
+        status:
+          type: string
+          enum: [ok, unavailable]
+          description: >-
+            `ok` only when every check that can fail did not. Mirrors the status
+            code, so a caller may use either.
+        checks:
+          type: object
+          required: [database, igdb]
+          properties:
+            database:
+              type: string
+              enum: [ok, unavailable]
+              description: A ping under its own one-second deadline.
+            igdb:
+              type: string
+              enum: [configured, not_configured]
+              description: >-
+                Whether Twitch credentials are present. Never a failure: the API
+                boots without them and simply answers 503 on the routes that
+                need IGDB.
 
     User:
       type: object

@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -44,11 +46,56 @@ func splitAndTrim(s string, delimiter string) []string {
 	return result
 }
 
+// healthCheckTimeout bounds the database ping, and is deliberately shorter than
+// the global three-second request timeout: a health check that hangs for three
+// seconds is indistinguishable from a failing one to whatever is watching it,
+// and a platform's checker will usually have given up first.
+const healthCheckTimeout = time.Second
+
+// Home is the health check, and it can fail — which is the entire point.
+//
+// It used to answer 200 with a string literal, so it reported a machine whose
+// database was unreachable as healthy. That is harmless only while the only
+// reader is a person who already knows what is broken; a platform decides
+// whether to keep a machine in rotation from exactly this response.
+//
+// It publishes no version. The constant it used to carry had not moved in
+// months, and a stale version is worse than none because eventually somebody
+// believes it. This route is unauthenticated and world-readable, so anything
+// here is also free fingerprinting for somebody scanning for known CVEs — which
+// is why there is no uptime, memory, request count or Go version either.
 func (app *application) Home(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"status":  "active",
-		"message": "tooManyHours API is running",
-		"version": apiVersion,
+	ctx, cancel := context.WithTimeout(c.Request.Context(), healthCheckTimeout)
+	defer cancel()
+
+	status := http.StatusOK
+	overall := "ok"
+	database := "ok"
+
+	if err := app.DB.Connection().PingContext(ctx); err != nil {
+		status = http.StatusServiceUnavailable
+		overall = "unavailable"
+		database = "unavailable"
+		// Logged rather than returned: the reason belongs to whoever runs this,
+		// not to an anonymous caller.
+		log.Printf("health: database unreachable: %v", err)
+	}
+
+	// Never a failure. This deployment is designed to boot without Twitch
+	// credentials, so their absence is a fact worth reporting and not an
+	// outage — it answers the question the deployment notes say to verify by
+	// hand rather than assume.
+	igdbStatus := "not_configured"
+	if app.IGDB != nil {
+		igdbStatus = "configured"
+	}
+
+	c.JSON(status, gin.H{
+		"status": overall,
+		"checks": gin.H{
+			"database": database,
+			"igdb":     igdbStatus,
+		},
 	})
 }
 
